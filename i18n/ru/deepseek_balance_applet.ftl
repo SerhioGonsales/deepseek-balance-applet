@@ -1,0 +1,12 @@
+app-title = DeepSeek Баланс
+balance-title = Баланс DeepSeek
+balance = баланс
+no-api-key = API-ключ не настроен. Задайте переменную DEEPSEEK_API_KEY или настройте через COSMIC.
+no-data = Данных о балансе пока нет.
+loading = Загрузка...
+last-updated = Обновлено:
+refresh = Обновить
+error-prefix = Ошибка
+total = Всего
+topped-up = Пополнено
+granted = Бонусные

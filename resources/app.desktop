@@ -1,0 +1,14 @@
+[Desktop Entry]
+Name=Deepseek Balance Applet
+Comment=DeepSeek balance monitor for COSMIC desktop
+Type=Application
+Icon=com.github.serhio.DeepSeekBalance
+Exec=deepseek-balance-applet %F
+Terminal=false
+StartupNotify=true
+Categories=COSMIC
+Keywords=COSMIC
+NoDisplay=true
+X-CosmicApplet=true
+X-CosmicHoverPopup=Auto
+MimeType=

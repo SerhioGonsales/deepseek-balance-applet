@@ -1,0 +1,12 @@
+app-title = DeepSeek Balance
+balance-title = DeepSeek Balance
+balance = balance
+no-api-key = No API key configured. Set DEEPSEEK_API_KEY env var or configure in COSMIC Settings.
+no-data = No balance data yet.
+loading = Loading...
+last-updated = Last updated:
+refresh = Refresh
+error-prefix = Error
+total = Total
+topped-up = Topped Up
+granted = Granted
