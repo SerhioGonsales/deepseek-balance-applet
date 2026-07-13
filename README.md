@@ -1,43 +1,64 @@
-# Deepseek Balance Applet
+# DeepSeek Balance
 
-DeepSeek balance monitor for COSMIC desktop
+A small [COSMIC](https://github.com/pop-os/cosmic-epoch) panel applet that shows your
+[DeepSeek](https://platform.deepseek.com/) API account balance, right in the panel.
 
-## Installation
+![screenshot placeholder](docs/screenshot.png)
 
-A [justfile](./justfile) is included by default for the [casey/just][just] command runner.
+## Features
 
-- `just` builds the application with the default `just build-release` recipe
-- `just run` builds and runs the application
-- `just install` installs the project into the system
-- `just vendor` creates a vendored tarball
-- `just build-vendored` compiles with vendored dependencies from that tarball
-- `just check` runs clippy on the project to check for linter warnings
-- `just check-json` can be used by IDEs that support LSP
+- Balance shown directly in the panel (with currency symbol)
+- Popup with a full breakdown: total / topped-up / granted balance
+- Auto-refreshes on a configurable interval (minimum 30s)
+- Manual refresh button
+- API key and refresh interval configurable from the applet itself
+- Falls back to `DEEPSEEK_API_KEY` environment variable
 
-## Translators
+## Installing
 
-[Fluent][fluent] is used for localization of the software. Fluent's translation files are found in the [i18n directory](./i18n). New translations may copy the [English (en) localization](./i18n/en) of the project, rename `en` to the desired [ISO 639-1 language code][iso-codes], and then translations can be provided for each [message identifier][fluent-guide]. If no translation is necessary, the message may be omitted.
+### One-liner
 
-## Packaging
-
-If packaging for a Linux distribution, vendor dependencies locally with the `vendor` rule, and build with the vendored sources using the `build-vendored` rule. When installing files, use the `rootdir` and `prefix` variables to change installation paths.
+Requires [Rust](https://rustup.rs) and [`just`](https://github.com/casey/just):
 
 ```sh
-just vendor
-just build-vendored
-just rootdir=debian/deepseek-balance-applet prefix=/usr install
+curl -sSL https://raw.githubusercontent.com/serhio/deepseek-balance-applet/main/install.sh | bash
 ```
 
-It is recommended to build a source tarball with the vendored dependencies, which can typically be done by running `just vendor` on the host system before it enters the build environment.
+This clones the repo, builds a release binary, and installs to `~/.local`.
 
-## Developers
+### From source
 
-Developers should install [rustup][rustup] and configure their editor to use [rust-analyzer][rust-analyzer].
+```sh
+git clone https://github.com/serhio/deepseek-balance-applet.git
+cd deepseek-balance-applet
 
-[fluent]: https://projectfluent.org/
-[fluent-guide]: https://projectfluent.org/fluent/guide/hello.html
-[iso-codes]: https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes
-[just]: https://github.com/casey/just
-[rustup]: https://rustup.rs/
-[rust-analyzer]: https://rust-analyzer.github.io/
-[sccache]: https://github.com/mozilla/sccache
+just install-user   # installs to ~/.local, no root needed
+# or
+sudo just install   # system-wide to /usr
+```
+
+After installation, open **Settings → Desktop → Panel → Applets** and
+add **DeepSeek Balance**.
+
+### Uninstalling
+
+```sh
+just uninstall-user   # if you used install-user
+sudo just uninstall   # if you used system-wide install
+```
+
+## Setting up your API key
+
+Click the applet in the panel, then the gear icon in the popup. Enter your
+DeepSeek API key and preferred refresh interval, then **Save**.
+
+Alternatively, set the `DEEPSEEK_API_KEY` environment variable before launching
+the session.
+
+> **Note:** the key is stored in plain text in
+> `~/.config/cosmic/com.github.serhio.DeepSeekBalance/v1/api_key`
+> (COSMIC's standard config — not an encrypted store).
+
+## License
+
+[MPL-2.0](LICENSE)

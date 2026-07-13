@@ -13,3 +13,4 @@ debian/*
 !debian/install
 !debian/rules
 !debian/source
+cld/

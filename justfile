@@ -12,6 +12,12 @@ bin-dst := base-dir / 'bin' / name
 desktop-dst := base-dir / 'share' / 'applications' / appid + '.desktop'
 icon-dst := base-dir / 'share' / 'icons' / 'hicolor' / 'scalable' / 'apps' / appid + '.svg'
 
+# User-local install paths
+home-bin-dst := env('HOME') / '.local' / 'bin' / name
+home-desktop-dst := env('HOME') / '.local' / 'share' / 'applications' / appid + '.desktop'
+home-icon-dst := env('HOME') / '.local' / 'share' / 'icons' / 'hicolor' / 'scalable' / 'apps' / appid + '.svg'
+home-icon-png-dst := env('HOME') / '.local' / 'share' / 'icons' / 'hicolor' / '128x128' / 'apps' / appid + '.png'
+
 # Default recipe which runs `just build-release`
 default: build-release
 
@@ -47,16 +53,29 @@ check-json: (check '--message-format=json')
 run *args:
     env RUST_BACKTRACE=full cargo run --release {{args}}
 
-# Installs files
+# Installs files (system-wide, requires sudo)
 install:
     install -Dm0755 {{ cargo-target-dir / 'release' / name }} {{bin-dst}}
     install -Dm0644 resources/app.desktop {{desktop-dst}}
     install -Dm0644 resources/app.metainfo.xml {{appdata-dst}}
     install -Dm0644 resources/icon.svg {{icon-dst}}
 
-# Uninstalls installed files
+# Installs to ~/.local (no root needed)
+install-user: build-release
+    install -Dm0755 {{ cargo-target-dir / 'release' / name }} {{home-bin-dst}}
+    install -Dm0644 resources/app.desktop {{home-desktop-dst}}
+    install -Dm0644 resources/icon.svg {{home-icon-dst}}
+    install -Dm0644 resources/icons8-deepseek-48.png {{home-icon-png-dst}}
+    @echo "Installed to ~/.local. Add via Settings > Desktop > Panel."
+    @echo "Ensure ~/.local/bin is on your PATH."
+
+# Uninstalls installed files (system-wide)
 uninstall:
-    rm {{bin-dst}} {{desktop-dst}} {{icon-dst}}
+    rm -f {{bin-dst}} {{desktop-dst}} {{icon-dst}}
+
+# Uninstalls user-local install
+uninstall-user:
+    rm -f {{home-bin-dst}} {{home-desktop-dst}} {{home-icon-dst}} {{home-icon-png-dst}}
 
 # Vendor dependencies locally
 vendor:
@@ -79,4 +98,3 @@ tag version:
     git add Cargo.lock
     git commit -m 'release: {{version}}'
     git tag -a {{version}} -m ''
-
