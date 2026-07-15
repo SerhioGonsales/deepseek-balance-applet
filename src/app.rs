@@ -223,6 +223,7 @@ pub enum Message {
     IntervalInputChanged(String),
     ToggleApiKeyVisibility,
     SaveSettings,
+    ToggleLanguage,
     PasteFromClipboard,
 }
 
@@ -252,6 +253,9 @@ impl cosmic::Application for AppModel {
         }
         let api_key_input = config.api_key.clone();
         let interval_input = config.refresh_interval_secs.to_string();
+        // Apply saved language
+        let lang_id: i18n_embed::unic_langid::LanguageIdentifier = config.language.parse().unwrap_or_else(|_| "en".parse().unwrap());
+        crate::i18n::init(&[lang_id]);
         let app = AppModel { core, config, config_handler, api_key_input, interval_input, ..Default::default() };
         (app, Task::none())
     }
@@ -259,8 +263,15 @@ impl cosmic::Application for AppModel {
     fn on_close_requested(&self, id: Id) -> Option<Message> { Some(Message::PopupClosed(id)) }
 
     fn view(&self) -> Element<'_, Self::Message> {
+        let auth_err = self.error.as_deref() == Some("AUTH_ERROR");
+        let offline = self.error.as_ref().map_or(false, |e| e.starts_with("network error:"));
+        let is_err = offline || auth_err;
         let balance_str: String = if self.config.api_key.is_empty() {
             "?".into()
+        } else if offline {
+            fl!("badge-no-network")
+        } else if auth_err {
+            fl!("badge-auth-error")
         } else if let Some(ref balance) = self.balance {
             match primary_info(balance) {
                 Some(i) => format!("{}{}", currency_symbol(&i.currency), i.total_balance),
@@ -270,10 +281,26 @@ impl cosmic::Application for AppModel {
 
         let icon_handle = widget::icon::from_raster_bytes(include_bytes!("../resources/icons8-deepseek-48.png"));
         let icon = widget::icon::icon(icon_handle).size(20);
-        let label = widget::container(
-            widget::text(format!(" {balance_str}"))
-                .font(cosmic::iced::Font::with_name("Ubuntu Mono")).size(13),
-        ).height(Length::Fill).align_y(cosmic::iced::alignment::Vertical::Center);
+        let label_text = widget::text(format!(" {balance_str}"))
+            .font(cosmic::iced::Font::with_name("Ubuntu Mono")).size(13);
+        let label = if is_err {
+            let color = if offline {
+                cosmic::iced::Color::from_rgb(0.95, 0.25, 0.25)
+            } else {
+                cosmic::iced::Color::from_rgb(0.90, 0.70, 0.10)
+            };
+            widget::container(label_text).style(move |_theme: &cosmic::Theme| cosmic::widget::container::Style {
+                text_color: Some(color),
+                background: None,
+                border: cosmic::iced::Border { radius: 0.0.into(), width: 0.0, color: cosmic::iced::Color::TRANSPARENT },
+                shadow: cosmic::iced::Shadow::default(),
+                icon_color: None,
+                snap: false,
+            })
+        } else {
+            widget::container(label_text)
+        }
+        .height(Length::Fill).align_y(cosmic::iced::alignment::Vertical::Center);
         let row = widget::row(vec![icon.into(), label.into()]).spacing(2).align_y(Alignment::Center);
         let button = widget::button::custom(row)
             .class(cosmic::theme::Button::AppletIcon).on_press(Message::TogglePopup).padding([2, 6]);
@@ -348,79 +375,90 @@ impl cosmic::Application for AppModel {
         }
 
         // ── Balance ───────────────────────────────────────────────────────────
-        if let Some(ref balance) = self.balance {
+        let has_balance = self.balance.is_some();
+        let show_card = has_balance || self.error.is_some();
+        if show_card {
             // API unavailable banner
-            if !balance.is_available {
-                body = body.add(info_block(
-                    fl!("api-unavailable-title"),
-                    fl!("api-unavailable"),
-                    None,
-                ));
+            if let Some(ref balance) = self.balance {
+                if !balance.is_available {
+                    body = body.add(info_block(
+                        fl!("api-unavailable-title"),
+                        fl!("api-unavailable"),
+                        None,
+                    ));
+                }
             }
 
-            if let Some(info) = primary_info(balance) {
-                let symbol = currency_symbol(&info.currency);
+            let (symbol, amount) = if let Some(ref balance) = self.balance {
+                if let Some(info) = primary_info(balance) {
+                    (currency_symbol(&info.currency).to_string(), info.total_balance.clone())
+                } else {
+                    ("$".into(), "\u{2014}".into())
+                }
+            } else {
+                ("$".into(), "\u{2014}".into())
+            };
 
-                let status_badge: Element<'_, Message> = {
-                    let stale = self.last_updated.map_or(true, |t| {
-                        (chrono::Local::now() - t).num_minutes() >= STALE_THRESHOLD_MINS
-                    });
-                    if self.loading {
+            let status_badge: Element<'_, Message> = {
+                let stale = self.last_updated.map_or(true, |t| {
+                    (chrono::Local::now() - t).num_minutes() >= STALE_THRESHOLD_MINS
+                });
+                if self.loading {
+                    badge_with_tooltip(
+                        badge_neutral(fl!("badge-loading")),
+                        fl!("badge-loading-tooltip"),
+                    )
+                } else if self.error.as_deref() == Some("AUTH_ERROR") {
+                    widget::button::custom(
                         badge_with_tooltip(
-                            badge_neutral(fl!("badge-loading")),
-                            fl!("badge-loading-tooltip"),
-                        )
-                    } else if self.error.as_deref() == Some("AUTH_ERROR") {
-                        widget::button::custom(
-                            badge_with_tooltip(
-                                badge_warning(fl!("badge-auth-error")),
-                                fl!("bad-auth"),
-                            ),
-                        )
-                        .on_press(Message::OpenSettings)
-                        .class(cosmic::theme::Button::Icon)
-                        .into()
-                    } else if self.error.as_ref().map_or(false, |e| e.starts_with("network error:")) {
-                        widget::button::custom(
-                            badge_with_tooltip(
-                                badge_destructive(fl!("badge-no-network")),
-                                fl!("offline"),
-                            ),
-                        )
-                        .on_press(Message::RefreshBalance)
-                        .class(cosmic::theme::Button::Icon)
-                        .into()
-                    } else if stale {
+                            badge_warning(fl!("badge-auth-error")),
+                            fl!("bad-auth"),
+                        ),
+                    )
+                    .on_press(Message::OpenSettings)
+                    .class(cosmic::theme::Button::Icon)
+                    .padding(0)
+                    .into()
+                } else if self.error.as_ref().map_or(false, |e| e.starts_with("network error:")) {
+                    widget::button::custom(
                         badge_with_tooltip(
-                            badge_warning(fl!("badge-offline")),
-                            fl!("badge-offline-tooltip"),
-                        )
-                    } else {
-                        badge_with_tooltip(
-                            badge_success(fl!("badge-online")),
-                            fl!("badge-online-tooltip"),
-                        )
-                    }
-                };
+                            badge_destructive(fl!("badge-no-network")),
+                            fl!("offline"),
+                        ),
+                    )
+                    .on_press(Message::RefreshBalance)
+                    .class(cosmic::theme::Button::Icon)
+                    .padding(0)
+                    .into()
+                } else if stale {
+                    badge_with_tooltip(
+                        badge_warning(fl!("badge-offline")),
+                        fl!("badge-offline-tooltip"),
+                    )
+                } else {
+                    badge_with_tooltip(
+                        badge_success(fl!("badge-online")),
+                        fl!("badge-online-tooltip"),
+                    )
+                }
+            };
 
-                // Main balance card
-                let mut balance_items = widget::list_column();
+            // Main balance card
+            let mut balance_items = widget::list_column();
+            balance_items = balance_items.add(
+                widget::row(vec![
+                    widget::text(format!("{symbol}{amount}"))
+                        .size(36)
+                        .width(Length::Fill)
+                        .into(),
+                    status_badge,
+                ])
+                .align_y(Alignment::Center),
+            );
+            body = body.add(card(balance_items));
 
-                // Big number row
-                balance_items = balance_items.add(
-                    widget::row(vec![
-                        widget::text(format!("{symbol}{}", info.total_balance))
-                            .size(36)
-                            .width(Length::Fill)
-                            .into(),
-                        status_badge,
-                    ])
-                    .align_y(Alignment::Center),
-                );
-
-                body = body.add(card(balance_items));
-
-                // Spent today card
+            // Spent today card (only with real balance)
+            if has_balance {
                 if let Some(spent_today) = self.spent_today() {
                     body = body.add(card(
                         widget::row(vec![
@@ -436,37 +474,6 @@ impl cosmic::Application for AppModel {
                     ));
                 }
             }
-        }
-
-        // ── Error (no balance yet) ─────────────────────────────────────────────
-        if self.error.is_some() && self.balance.is_none() {
-            let error = self.error.as_ref().unwrap();
-            let (title, msg, action): (String, String, Element<'_, Message>) = if error == "AUTH_ERROR" {
-                (
-                    fl!("bad-auth-title"),
-                    fl!("bad-auth"),
-                    widget::button::standard(fl!("open-settings"))
-                        .on_press(Message::OpenSettings)
-                        .into(),
-                )
-            } else if error.starts_with("network error:") {
-                (
-                    fl!("offline-title"),
-                    fl!("offline"),
-                    widget::button::standard(fl!("refresh"))
-                        .on_press(Message::RefreshBalance)
-                        .into(),
-                )
-            } else {
-                (
-                    fl!("error-prefix"),
-                    error.clone(),
-                    widget::button::standard(fl!("refresh"))
-                        .on_press(Message::RefreshBalance)
-                        .into(),
-                )
-            };
-            body = body.add(info_block(title, msg, Some(action)));
         }
 
         // ── Footer ────────────────────────────────────────────────────────────
@@ -585,6 +592,13 @@ impl cosmic::Application for AppModel {
                     if let Ok(text) = clipboard.get_text() { self.api_key_input.push_str(&text); }
                 }
             }
+            Message::ToggleLanguage => {
+                let new_lang = if self.config.language == "ru" { "en" } else { "ru" };
+                self.config.language = new_lang.into();
+                let lang_id: i18n_embed::unic_langid::LanguageIdentifier = self.config.language.parse().unwrap();
+                crate::i18n::init(&[lang_id]);
+                let _ = self.persist_config();
+            }
             Message::SaveSettings => {
                 let interval = match self.interval_input.parse::<u64>() {
                     Ok(v) if v >= MIN_REFRESH_INTERVAL_SECS => v,
@@ -673,6 +687,8 @@ impl AppModel {
         );
 
         // ── API Key card ──────────────────────────────────────────────────────
+        let key_handle: widget::icon::Handle =
+            cosmic::widget::icon::from_name("dialog-password-symbolic").into();
         let eye_icon_name = if self.show_api_key {
             "view-conceal-symbolic"
         } else {
@@ -703,7 +719,14 @@ impl AppModel {
 
         body = body.add(card(
             widget::list_column()
-                .add(widget::text(fl!("api-key-label")).size(14))
+                .add(
+                    widget::row(vec![
+                        widget::icon::icon(key_handle).size(16).into(),
+                        widget::text(fl!("api-key-label")).size(14).into(),
+                    ])
+                    .spacing(6)
+                    .align_y(Alignment::Center),
+                )
                 .add(widget::text::caption(fl!("api-key-description")))
                 .add(
                     widget::row(vec![
@@ -717,6 +740,8 @@ impl AppModel {
         ));
 
         // ── Refresh interval card ─────────────────────────────────────────────
+        let clock_handle: widget::icon::Handle =
+            cosmic::widget::icon::from_name("preferences-system-time-symbolic").into();
         let interval_field = widget::text_input("180", &self.interval_input)
             .on_input(Message::IntervalInputChanged)
             .on_submit(|_| Message::SaveSettings)
@@ -724,7 +749,14 @@ impl AppModel {
 
         body = body.add(card(
             widget::list_column()
-                .add(widget::text(fl!("refresh-interval-label")).size(14))
+                .add(
+                    widget::row(vec![
+                        widget::icon::icon(clock_handle).size(16).into(),
+                        widget::text(fl!("refresh-interval-label")).size(14).into(),
+                    ])
+                    .spacing(6)
+                    .align_y(Alignment::Center),
+                )
                 .add(widget::text::caption(fl!(
                     "refresh-interval-description",
                     min = MIN_REFRESH_INTERVAL_SECS.to_string()
@@ -737,6 +769,22 @@ impl AppModel {
                     .spacing(6)
                     .align_y(Alignment::Center),
                 ),
+        ));
+
+        // ── Language ───────────────────────────────────────────────────────────
+        let lang_handle: widget::icon::Handle =
+            cosmic::widget::icon::from_name("preferences-desktop-locale-symbolic").into();
+        let current_lang = if self.config.language == "ru" { "RU" } else { "EN" };
+        body = body.add(card(
+            widget::row(vec![
+                widget::icon::icon(lang_handle).size(16).into(),
+                widget::text(fl!("language-label")).size(14).width(Length::Fill).into(),
+                widget::button::standard(current_lang)
+                    .on_press(Message::ToggleLanguage)
+                    .into(),
+            ])
+            .spacing(6)
+            .align_y(Alignment::Center),
         ));
 
         // ── Error ─────────────────────────────────────────────────────────────

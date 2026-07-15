@@ -26,6 +26,7 @@ interval-too-small = Минимум { $min } секунд
 interval-invalid = Введите число
 save-failed = Не удалось сохранить
 open-settings = Открыть настройки
+language-label = Язык
 
 available-balance = Доступный баланс
 spent-total = Потрачено { $amount }

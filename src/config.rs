@@ -3,7 +3,7 @@
 use cosmic::cosmic_config::{self, cosmic_config_derive::CosmicConfigEntry, CosmicConfigEntry};
 
 #[derive(Clone, CosmicConfigEntry, Eq, PartialEq)]
-#[version = 1]
+#[version = 2]
 pub struct Config {
     /// `DeepSeek` API key for authentication.
     pub api_key: String,
@@ -14,6 +14,8 @@ pub struct Config {
     pub spend_day: String,
     /// Balance recorded at the start of `spend_day`, as a decimal string.
     pub spend_day_start_balance: String,
+    /// UI language: "en" or "ru".
+    pub language: String,
 }
 
 impl std::fmt::Debug for Config {
@@ -30,6 +32,7 @@ impl std::fmt::Debug for Config {
             .field("refresh_interval_secs", &self.refresh_interval_secs)
             .field("spend_day", &self.spend_day)
             .field("spend_day_start_balance", &self.spend_day_start_balance)
+            .field("language", &self.language)
             .finish()
     }
 }
@@ -41,6 +44,7 @@ impl Default for Config {
             refresh_interval_secs: 180,
             spend_day: String::new(),
             spend_day_start_balance: String::new(),
+            language: String::from("en"),
         }
     }
 }
