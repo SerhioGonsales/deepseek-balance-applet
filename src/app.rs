@@ -854,14 +854,8 @@ impl AppModel {
             widget::text(fl!("api-key-description")).size(12),
             widget::tooltip::Position::Top,
         );
-        let eye_icon_name = if self.show_api_key {
-            "view-hidden-symbolic"
-        } else {
-            "view-visible-symbolic"
-        };
-        let eye_handle: widget::icon::Handle =
-            cosmic::widget::icon::from_name(eye_icon_name).into();
-        let eye_button = widget::button::custom(widget::icon::icon(eye_handle).size(14))
+        let eye_label = if self.show_api_key { "***" } else { "abc" };
+        let eye_button = widget::button::custom(widget::text(eye_label).size(11))
             .on_press(Message::ToggleApiKeyVisibility)
             .class(cosmic::theme::Button::Icon);
         let paste_handle: widget::icon::Handle =
