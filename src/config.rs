@@ -9,6 +9,11 @@ pub struct Config {
     pub api_key: String,
     /// Balance refresh interval in seconds (minimum 30s enforced in app logic).
     pub refresh_interval_secs: u64,
+    /// Date (`YYYY-MM-DD`, local time) the current spend-tracking baseline
+    /// was recorded on.
+    pub spend_day: String,
+    /// Balance recorded at the start of `spend_day`, as a decimal string.
+    pub spend_day_start_balance: String,
 }
 
 impl std::fmt::Debug for Config {
@@ -23,6 +28,8 @@ impl std::fmt::Debug for Config {
                 },
             )
             .field("refresh_interval_secs", &self.refresh_interval_secs)
+            .field("spend_day", &self.spend_day)
+            .field("spend_day_start_balance", &self.spend_day_start_balance)
             .finish()
     }
 }
@@ -31,7 +38,9 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             api_key: String::new(),
-            refresh_interval_secs: 180, // 3 minutes
+            refresh_interval_secs: 180,
+            spend_day: String::new(),
+            spend_day_start_balance: String::new(),
         }
     }
 }

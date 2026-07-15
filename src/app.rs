@@ -1,51 +1,215 @@
 // SPDX-License-Identifier: MPL-2.0 (Mozilla Public License 2.0)
 
-use crate::api::{self, BalanceResponse};
+use crate::api::{self, BalanceInfo, BalanceResponse};
 use crate::config::Config;
 use crate::fl;
 use cosmic::cosmic_config::{self, CosmicConfigEntry};
 use cosmic::iced::futures::SinkExt;
 use cosmic::iced::platform_specific::shell::wayland::commands::popup::{destroy_popup, get_popup};
-use cosmic::iced::{window::Id, Limits, Subscription};
+use cosmic::iced::{window::Id, Alignment, Background, Color, Length, Limits, Subscription};
 use cosmic::prelude::*;
 use cosmic::widget;
 
-/// Minimum accepted refresh interval, in seconds.
 const MIN_REFRESH_INTERVAL_SECS: u64 = 30;
+const STALE_THRESHOLD_MINS: i64 = 5;
 
-/// The application model stores app-specific state used to describe its interface and
-/// drive its logic.
+fn primary_info(balance: &BalanceResponse) -> Option<&BalanceInfo> {
+    balance.balance_infos.iter().find(|b| b.currency == "USD").or_else(|| balance.balance_infos.first())
+}
+
+fn parse_amount(s: &str) -> f64 {
+    s.trim().parse::<f64>().unwrap_or(0.0)
+}
+
+fn currency_symbol(currency: &str) -> &str {
+    match currency {
+        "USD" => "$", "CNY" => "¥", "EUR" => "€", other => other,
+    }
+}
+
+// ── styling helpers ──────────────────────────────────────────────────────────
+
+fn apply_alpha(mut color: Color, opacity: f32) -> Color {
+    color.a *= opacity;
+    color
+}
+
+fn card_style(theme: &cosmic::Theme) -> widget::container::Style {
+    let cosmic = theme.cosmic();
+    widget::container::Style {
+        text_color: None,
+        background: Some(Background::Color(cosmic.background(false).component.base.into())),
+        border: cosmic::iced::Border {
+            radius: cosmic.corner_radii.radius_m.into(),
+            width: 0.0,
+            color: Color::TRANSPARENT,
+        },
+        shadow: cosmic::iced::Shadow::default(),
+        icon_color: None,
+        snap: false,
+    }
+}
+
+fn muted_card_style(theme: &cosmic::Theme) -> widget::container::Style {
+    let cosmic = theme.cosmic();
+    widget::container::Style {
+        text_color: None,
+        background: Some(Background::Color(
+            apply_alpha(cosmic.background(false).component.base.into(), 0.6),
+        )),
+        border: cosmic::iced::Border {
+            radius: cosmic.corner_radii.radius_m.into(),
+            width: 0.0,
+            color: Color::TRANSPARENT,
+        },
+        shadow: cosmic::iced::Shadow::default(),
+        icon_color: None,
+        snap: false,
+    }
+}
+
+fn card<'a>(content: impl Into<Element<'a, Message>>) -> Element<'a, Message> {
+    widget::container(content)
+        .padding([12, 16])
+        .style(card_style)
+        .width(Length::Fill)
+        .into()
+}
+
+fn info_block<'a>(
+    title: String,
+    message: String,
+    action: Option<Element<'a, Message>>,
+) -> Element<'a, Message> {
+    let mut col = widget::list_column();
+    col = col.add(widget::text::caption(title));
+    col = col.add(widget::text::body(message));
+    if let Some(btn) = action {
+        col = col.add(btn);
+    }
+    widget::container(col)
+        .padding([12, 16])
+        .style(muted_card_style)
+        .width(Length::Fill)
+        .into()
+}
+
+fn badge_success(label: impl Into<String>) -> Element<'static, Message> {
+    let label = label.into();
+    badge_container(label, move |theme| {
+        let cosmic = theme.cosmic();
+        let color = cosmic.success.base.into();
+        badge_style(apply_alpha(color, 0.14), color, color, theme)
+    })
+}
+
+fn badge_warning(label: impl Into<String>) -> Element<'static, Message> {
+    let label = label.into();
+    badge_container(label, move |theme| {
+        let cosmic = theme.cosmic();
+        let color = cosmic.warning.base.into();
+        badge_style(apply_alpha(color, 0.14), color, color, theme)
+    })
+}
+
+fn badge_destructive(label: impl Into<String>) -> Element<'static, Message> {
+    let label = label.into();
+    badge_container(label, move |theme| {
+        let cosmic = theme.cosmic();
+        let color = cosmic.destructive.base.into();
+        badge_style(apply_alpha(color, 0.14), color, color, theme)
+    })
+}
+
+fn badge_neutral(label: impl Into<String>) -> Element<'static, Message> {
+    let label = label.into();
+    badge_container(label, move |theme| {
+        let cosmic = theme.cosmic();
+        let surface = &cosmic.background(false).component;
+        badge_style(
+            apply_alpha(surface.base.into(), 0.42),
+            surface.on.into(),
+            surface.divider.into(),
+            theme,
+        )
+    })
+}
+
+fn badge_with_tooltip(
+    badge: Element<'static, Message>,
+    tooltip: impl Into<String>,
+) -> Element<'static, Message> {
+    widget::tooltip::tooltip(
+        badge,
+        widget::text(tooltip.into()).size(12),
+        widget::tooltip::Position::Top,
+    )
+    .into()
+}
+
+fn badge_container(
+    label: String,
+    style: impl Fn(&cosmic::Theme) -> widget::container::Style + 'static,
+) -> Element<'static, Message> {
+    Element::from(
+        widget::container(widget::text(label).size(12))
+            .padding([3, 7])
+            .style(style),
+    )
+}
+
+fn badge_style(
+    bg: Color,
+    text_color: Color,
+    border_color: Color,
+    theme: &cosmic::Theme,
+) -> widget::container::Style {
+    let cosmic = theme.cosmic();
+    widget::container::Style {
+        text_color: Some(text_color),
+        background: Some(Background::Color(bg)),
+        border: cosmic::iced::Border {
+            radius: cosmic.corner_radii.radius_s.into(),
+            width: 1.0,
+            color: border_color,
+        },
+        shadow: cosmic::iced::Shadow::default(),
+        icon_color: None,
+        snap: true,
+    }
+}
+
+fn format_updated_label(last_updated: chrono::DateTime<chrono::Local>) -> String {
+    let age = chrono::Local::now() - last_updated;
+    if age.num_seconds() < 10 {
+        fl!("updated-just-now")
+    } else if age.num_minutes() < 1 {
+        fl!("updated-seconds-ago", n = age.num_seconds())
+    } else if age.num_hours() < 1 {
+        fl!("updated-minutes-ago", n = age.num_minutes())
+    } else {
+        let date = last_updated.format("%H:%M").to_string();
+        fl!("updated-at", date = date.as_str())
+    }
+}
+
 #[derive(Default)]
 pub struct AppModel {
-    /// Application state which is managed by the COSMIC runtime.
     core: cosmic::Core,
-    /// The popup id.
     popup: Option<Id>,
-    /// Configuration data that persists between application runs.
     config: Config,
-    /// Handle used to persist config changes to disk.
     config_handler: Option<cosmic_config::Config>,
-    /// Current balance information from the API.
     balance: Option<BalanceResponse>,
-    /// Whether a network request is in-flight.
     loading: bool,
-    /// Last error message, if any.
     error: Option<String>,
-    /// When the balance was last successfully updated.
     last_updated: Option<chrono::DateTime<chrono::Local>>,
-    /// Whether the settings form is shown instead of balance view.
     settings_open: bool,
-    /// Draft value of the API key field while settings form is open.
     api_key_input: String,
-    /// Draft value of the refresh interval field.
     interval_input: String,
-    /// Whether the API key field is rendered in plain text.
     show_api_key: bool,
-    /// Validation/persistence error inside the settings form.
     settings_error: Option<String>,
 }
 
-/// Messages emitted by the application and its widgets.
 #[derive(Debug, Clone)]
 pub enum Message {
     TogglePopup,
@@ -62,142 +226,75 @@ pub enum Message {
     PasteFromClipboard,
 }
 
-/// Create a COSMIC application from the app model.
 impl cosmic::Application for AppModel {
-    /// The async executor that will be used to run your application's commands.
     type Executor = cosmic::executor::Default;
-
-    /// Data that your application receives to its init method.
     type Flags = ();
-
-    /// Messages which the application and its widgets will emit.
     type Message = Message;
-
-    /// Unique identifier in RDNN (reverse domain name notation) format.
     const APP_ID: &'static str = "com.github.serhio.DeepSeekBalance";
 
-    fn core(&self) -> &cosmic::Core {
-        &self.core
-    }
+    fn core(&self) -> &cosmic::Core { &self.core }
+    fn core_mut(&mut self) -> &mut cosmic::Core { &mut self.core }
 
-    fn core_mut(&mut self) -> &mut cosmic::Core {
-        &mut self.core
-    }
-
-    /// Initializes the application with any given flags and startup commands.
-    fn init(
-        core: cosmic::Core,
-        _flags: Self::Flags,
-    ) -> (Self, Task<cosmic::Action<Self::Message>>) {
+    fn init(core: cosmic::Core, _flags: Self::Flags) -> (Self, Task<cosmic::Action<Self::Message>>) {
         let config_handler = match cosmic_config::Config::new(Self::APP_ID, Config::VERSION) {
             Ok(context) => Some(context),
-            Err(why) => {
-                tracing::warn!(%why, "failed to open config, using defaults");
-                None
-            }
+            Err(why) => { tracing::warn!(%why, "failed to open config, using defaults"); None }
         };
-
         let mut config = config_handler.as_ref().map_or_else(Config::default, |context| {
             match Config::get_entry(context) {
                 Ok(config) => config,
-                Err((_errors, config)) => {
-                    tracing::warn!("config load had errors, using defaults");
-                    config
-                }
+                Err((_errors, config)) => { tracing::warn!("config load had errors, using defaults"); config }
             }
         });
-
-        // Fallback to DEEPSEEK_API_KEY environment variable.
-        if config.api_key.is_empty()
-            && let Ok(env_key) = std::env::var("DEEPSEEK_API_KEY")
-        {
+        if config.api_key.is_empty() && let Ok(env_key) = std::env::var("DEEPSEEK_API_KEY") {
             tracing::info!("loaded DEEPSEEK_API_KEY from environment");
             config.api_key = env_key;
         }
-
         let api_key_input = config.api_key.clone();
         let interval_input = config.refresh_interval_secs.to_string();
-
-        let app = AppModel {
-            core,
-            config,
-            config_handler,
-            api_key_input,
-            interval_input,
-            ..Default::default()
-        };
-
+        let app = AppModel { core, config, config_handler, api_key_input, interval_input, ..Default::default() };
         (app, Task::none())
     }
 
-    fn on_close_requested(&self, id: Id) -> Option<Message> {
-        Some(Message::PopupClosed(id))
-    }
+    fn on_close_requested(&self, id: Id) -> Option<Message> { Some(Message::PopupClosed(id)) }
 
-    /// The applet's button in the panel — icon + balance, auto-sized surface.
     fn view(&self) -> Element<'_, Self::Message> {
         let balance_str: String = if self.config.api_key.is_empty() {
             "?".into()
         } else if let Some(ref balance) = self.balance {
-            let info = balance
-                .balance_infos
-                .iter()
-                .find(|b| b.currency == "USD")
-                .or_else(|| balance.balance_infos.first());
-            match info {
-                Some(i) => {
-                    let s = match i.currency.as_str() {
-                        "USD" => "$",
-                        "CNY" => "¥",
-                        "EUR" => "€",
-                        _ => "",
-                    };
-                    format!("{s}{}", i.total_balance)
-                }
+            match primary_info(balance) {
+                Some(i) => format!("{}{}", currency_symbol(&i.currency), i.total_balance),
                 None => "--".into(),
             }
-        } else if self.loading {
-            "···".into()
-        } else {
-            "--".into()
-        };
+        } else if self.loading { "···".into() } else { "--".into() };
 
-        let icon_handle = widget::icon::from_raster_bytes(
-            include_bytes!("../resources/icons8-deepseek-48.png"),
-        );
+        let icon_handle = widget::icon::from_raster_bytes(include_bytes!("../resources/icons8-deepseek-48.png"));
         let icon = widget::icon::icon(icon_handle).size(20);
-        let text = widget::container(
+        let label = widget::container(
             widget::text(format!(" {balance_str}"))
-                .font(cosmic::iced::Font::with_name("Ubuntu Mono"))
-                .size(13),
-        )
-        .height(cosmic::iced::Length::Fill)
-        .align_y(cosmic::iced::alignment::Vertical::Center);
-
-        let row = widget::row(vec![icon.into(), text.into()])
-            .spacing(2)
-            .align_y(cosmic::iced::Alignment::Center);
-
+                .font(cosmic::iced::Font::with_name("Ubuntu Mono")).size(13),
+        ).height(Length::Fill).align_y(cosmic::iced::alignment::Vertical::Center);
+        let row = widget::row(vec![icon.into(), label.into()]).spacing(2).align_y(Alignment::Center);
         let button = widget::button::custom(row)
-            .class(cosmic::theme::Button::AppletIcon)
-            .on_press(Message::TogglePopup)
-            .padding([2, 6]);
-
+            .class(cosmic::theme::Button::AppletIcon).on_press(Message::TogglePopup).padding([2, 6]);
         self.core.applet.autosize_window(button).into()
     }
 
-    /// The applet's popup window — either settings form or balance view.
     fn view_window(&self, _id: Id) -> Element<'_, Self::Message> {
-        if self.settings_open {
-            return self.view_settings();
-        }
+        if self.settings_open { return self.view_settings(); }
 
-        let mut content = widget::list_column();
+        let mut body = widget::list_column();
 
-        // --- Header: title + spacer + settings gear ---
+        // ── Header: DeepSeek icon + title + gear ─────────────────────────────
+        let icon_handle = widget::icon::from_raster_bytes(
+            include_bytes!("../resources/icons8-deepseek-48.png"),
+        );
         let header = widget::row(vec![
-            widget::text::heading(fl!("balance-title")).into(),
-            widget::space::horizontal().into(),
+            widget::icon::icon(icon_handle).size(20).into(),
+            widget::text(fl!("balance-title"))
+                .size(18)
+                .width(Length::Fill)
+                .into(),
             {
                 let gear_handle: widget::icon::Handle =
                     cosmic::widget::icon::from_name("emblem-system-symbolic").into();
@@ -207,381 +304,450 @@ impl cosmic::Application for AppModel {
                     .into()
             },
         ])
-        .align_y(cosmic::iced::Alignment::Center);
+        .spacing(8)
+        .align_y(Alignment::Center);
+        body = body.add(header);
 
-        content = content.add(header);
-
-        // --- Config missing / Error / Loading / No data ---
+        // ── No API key ────────────────────────────────────────────────────────
         if self.config.api_key.is_empty() {
-            content = content.add(widget::text::body(fl!("no-api-key")));
-        } else if let Some(error) = &self.error {
-            content = content.add(widget::text::body(format!(
-                "{}: {error}",
-                fl!("error-prefix")
-            )));
-        } else if self.loading && self.balance.is_none() {
-            content = content.add(widget::text::body(fl!("loading")));
-        } else if self.balance.is_none() {
-            content = content.add(widget::text::body(fl!("no-data")));
+            body = body.add(info_block(
+                fl!("no-api-key-title"),
+                fl!("no-api-key"),
+                Some(
+                    widget::button::standard(fl!("open-settings"))
+                        .on_press(Message::OpenSettings)
+                        .into(),
+                ),
+            ));
+            return self.core.applet.popup_container(
+                widget::container(body).padding([12, 8]).width(Length::Fill),
+            ).into();
         }
 
-        // --- API availability warning ---
-        if let Some(ref balance) = self.balance
-            && !balance.is_available
-        {
-            content = content.add(widget::text::body("⚠ API reports unavailable"));
+
+
+        // ── Loading (first fetch) ─────────────────────────────────────────────
+        if self.loading && self.balance.is_none() {
+            body = body.add(card(
+                widget::list_column()
+                    .add(
+                        widget::row(vec![
+                            widget::text::body(fl!("loading")).width(Length::Fill).into(),
+                            badge_with_tooltip(
+                                badge_neutral(fl!("badge-loading")),
+                                fl!("badge-loading-tooltip"),
+                            ),
+                        ])
+                        .align_y(Alignment::Center),
+                    )
+                    .add(widget::determinate_linear(0.0).girth(Length::Fixed(4.0))),
+            ));
+            return self.core.applet.popup_container(
+                widget::container(body).padding([12, 8]).width(Length::Fill),
+            ).into();
         }
 
-        // --- Balance details ---
+        // ── Balance ───────────────────────────────────────────────────────────
         if let Some(ref balance) = self.balance {
-            let mono = |t: &str| -> Element<'_, Self::Message> {
-                widget::text(t.to_owned()).font(cosmic::font::mono()).size(12).into()
-            };
+            // API unavailable banner
+            if !balance.is_available {
+                body = body.add(info_block(
+                    fl!("api-unavailable-title"),
+                    fl!("api-unavailable"),
+                    None,
+                ));
+            }
 
-            for info in &balance.balance_infos {
-                content = content.add(widget::settings::item(
-                    format!("  {} ({})", fl!("total"), info.currency),
-                    mono(&info.total_balance),
-                ));
-                content = content.add(widget::settings::item(
-                    format!("  {}", fl!("topped-up")),
-                    mono(&info.topped_up_balance),
-                ));
-                content = content.add(widget::settings::item(
-                    format!("  {}", fl!("granted")),
-                    mono(&info.granted_balance),
-                ));
+            if let Some(info) = primary_info(balance) {
+                let symbol = currency_symbol(&info.currency);
+
+                let status_badge: Element<'_, Message> = {
+                    let stale = self.last_updated.map_or(true, |t| {
+                        (chrono::Local::now() - t).num_minutes() >= STALE_THRESHOLD_MINS
+                    });
+                    if self.loading {
+                        badge_with_tooltip(
+                            badge_neutral(fl!("badge-loading")),
+                            fl!("badge-loading-tooltip"),
+                        )
+                    } else if self.error.as_deref() == Some("AUTH_ERROR") {
+                        widget::button::custom(
+                            badge_with_tooltip(
+                                badge_warning(fl!("badge-auth-error")),
+                                fl!("bad-auth"),
+                            ),
+                        )
+                        .on_press(Message::OpenSettings)
+                        .class(cosmic::theme::Button::Icon)
+                        .into()
+                    } else if self.error.as_ref().map_or(false, |e| e.starts_with("network error:")) {
+                        widget::button::custom(
+                            badge_with_tooltip(
+                                badge_destructive(fl!("badge-no-network")),
+                                fl!("offline"),
+                            ),
+                        )
+                        .on_press(Message::RefreshBalance)
+                        .class(cosmic::theme::Button::Icon)
+                        .into()
+                    } else if stale {
+                        badge_with_tooltip(
+                            badge_warning(fl!("badge-offline")),
+                            fl!("badge-offline-tooltip"),
+                        )
+                    } else {
+                        badge_with_tooltip(
+                            badge_success(fl!("badge-online")),
+                            fl!("badge-online-tooltip"),
+                        )
+                    }
+                };
+
+                // Main balance card
+                let mut balance_items = widget::list_column();
+
+                // Big number row
+                balance_items = balance_items.add(
+                    widget::row(vec![
+                        widget::text(format!("{symbol}{}", info.total_balance))
+                            .size(36)
+                            .width(Length::Fill)
+                            .into(),
+                        status_badge,
+                    ])
+                    .align_y(Alignment::Center),
+                );
+
+                body = body.add(card(balance_items));
+
+                // Spent today card
+                if let Some(spent_today) = self.spent_today() {
+                    body = body.add(card(
+                        widget::row(vec![
+                            widget::text(fl!("spent-today-label"))
+                                .size(14)
+                                .width(Length::Fill)
+                                .into(),
+                            widget::text(format!("{symbol}{spent_today:.2}"))
+                                .size(14)
+                                .into(),
+                        ])
+                        .align_y(Alignment::Center),
+                    ));
+                }
             }
         }
 
-        // --- Footer: time (left) + spacer + refresh (right edge) ---
-        let has_clock = self.last_updated.is_some();
-        let has_refresh = !self.config.api_key.is_empty();
+        // ── Error (no balance yet) ─────────────────────────────────────────────
+        if self.error.is_some() && self.balance.is_none() {
+            let error = self.error.as_ref().unwrap();
+            let (title, msg, action): (String, String, Element<'_, Message>) = if error == "AUTH_ERROR" {
+                (
+                    fl!("bad-auth-title"),
+                    fl!("bad-auth"),
+                    widget::button::standard(fl!("open-settings"))
+                        .on_press(Message::OpenSettings)
+                        .into(),
+                )
+            } else if error.starts_with("network error:") {
+                (
+                    fl!("offline-title"),
+                    fl!("offline"),
+                    widget::button::standard(fl!("refresh"))
+                        .on_press(Message::RefreshBalance)
+                        .into(),
+                )
+            } else {
+                (
+                    fl!("error-prefix"),
+                    error.clone(),
+                    widget::button::standard(fl!("refresh"))
+                        .on_press(Message::RefreshBalance)
+                        .into(),
+                )
+            };
+            body = body.add(info_block(title, msg, Some(action)));
+        }
 
-        let mut footer_children: Vec<Element<'_, Self::Message>> = Vec::new();
+        // ── Footer ────────────────────────────────────────────────────────────
+        {
+            let mut footer_items: Vec<Element<'_, Message>> = Vec::new();
 
-        if let Some(updated) = self.last_updated {
-            footer_children.push(
+            if let Some(updated) = self.last_updated {
+                footer_items.push(
+                    widget::text::caption(format_updated_label(updated)).into(),
+                );
+            }
+
+            footer_items.push(widget::space::horizontal().into());
+
+            let interval_secs = self.config.refresh_interval_secs.max(MIN_REFRESH_INTERVAL_SECS);
+            footer_items.push(
                 widget::text::caption(format!(
-                    "{} {}",
-                    fl!("last-updated"),
-                    updated.format("%H:%M")
+                    "{} {}s",
+                    fl!("refresh-interval-label-short"),
+                    interval_secs
                 ))
                 .into(),
             );
-        }
 
-        if has_clock || has_refresh {
-            footer_children.push(widget::space::horizontal().into());
-        }
-
-        if has_refresh {
             let refresh_handle: widget::icon::Handle =
                 cosmic::widget::icon::from_name("view-refresh-symbolic").into();
-            footer_children.push(
+            footer_items.push(
                 widget::button::custom(widget::icon::icon(refresh_handle).size(14))
                     .on_press(Message::RefreshBalance)
                     .class(cosmic::theme::Button::Icon)
                     .into(),
             );
-        }
 
-        if has_clock || has_refresh {
-            content = content.add(
-                widget::flex_row(footer_children)
-                    .align_items(cosmic::iced::Alignment::Center),
+            body = body.add(
+                widget::container(
+                    widget::row(footer_items).align_y(Alignment::Center),
+                )
+                .padding([4, 4, 4, 4])
+                .width(Length::Fill),
             );
         }
 
-        self.core.applet.popup_container(content).into()
+        self.core.applet.popup_container(
+            widget::container(body).padding([12, 8]).width(Length::Fill),
+        ).into()
     }
 
-    /// Register subscriptions for this application.
     fn subscription(&self) -> Subscription<Self::Message> {
         let api_key = self.config.api_key.clone();
         let interval_secs = self.config.refresh_interval_secs.max(MIN_REFRESH_INTERVAL_SECS);
-
         Subscription::batch(vec![
-            // Periodic balance polling.
-            Subscription::run_with(
-                (api_key, interval_secs),
-                |(api_key, interval_secs): &(String, u64)| {
-                    let api_key = api_key.clone();
-                    let interval_secs = *interval_secs;
-                    cosmic::iced::stream::channel(
-                        4,
-                        move |mut channel: cosmic::iced::futures::channel::mpsc::Sender<Message>| async move {
-                            // Fetch immediately on start.
-                            if !api_key.is_empty() {
-                                let result = api::fetch_balance(&api_key).await;
-                                _ = channel.send(Message::BalanceFetched(result)).await;
-                            }
-
-                            // Then poll periodically.
-                            loop {
-                                tokio::time::sleep(std::time::Duration::from_secs(
-                                    interval_secs,
-                                ))
-                                .await;
-                                if !api_key.is_empty() {
-                                    let result = api::fetch_balance(&api_key).await;
-                                    if channel
-                                        .send(Message::BalanceFetched(result))
-                                        .await
-                                        .is_err()
-                                    {
-                                        break;
-                                    }
-                                }
-                            }
-                        },
-                    )
-                },
-            ),
-            // Watch for application configuration changes.
-            self.core()
-                .watch_config::<Config>(Self::APP_ID)
-                .map(|update| {
-                    tracing::info!("config updated via dbus");
-                    Message::UpdateConfig(update.config)
-                }),
+            Subscription::run_with((api_key, interval_secs), |(api_key, interval_secs): &(String, u64)| {
+                let api_key = api_key.clone();
+                let interval_secs = *interval_secs;
+                cosmic::iced::stream::channel(4, move |mut channel: cosmic::iced::futures::channel::mpsc::Sender<Message>| async move {
+                    if !api_key.is_empty() {
+                        _ = channel.send(Message::BalanceFetched(api::fetch_balance(&api_key).await)).await;
+                    }
+                    loop {
+                        tokio::time::sleep(std::time::Duration::from_secs(interval_secs)).await;
+                        if !api_key.is_empty() {
+                            if channel.send(Message::BalanceFetched(api::fetch_balance(&api_key).await)).await.is_err() { break; }
+                        }
+                    }
+                })
+            }),
+            self.core().watch_config::<Config>(Self::APP_ID).map(|update| { tracing::info!("config updated via dbus"); Message::UpdateConfig(update.config) }),
         ])
     }
 
-    /// Handles messages emitted by the application and its widgets.
     fn update(&mut self, message: Self::Message) -> Task<cosmic::Action<Self::Message>> {
         match message {
             Message::BalanceFetched(result) => {
                 self.loading = false;
                 match result {
                     Ok(balance) => {
+                        self.update_spend_baseline(&balance);
                         self.balance = Some(balance);
                         self.error = None;
                         self.last_updated = Some(chrono::Local::now());
                     }
-                    Err(e) => {
-                        tracing::warn!(%e, "balance fetch failed");
-                        self.error = Some(e);
-                    }
+                    Err(e) => { tracing::warn!(%e, "balance fetch failed"); self.error = Some(e); }
                 }
             }
             Message::RefreshBalance => {
-                if self.config.api_key.is_empty() {
-                    self.error = Some(fl!("no-api-key"));
-                    return Task::none();
-                }
+                if self.config.api_key.is_empty() { self.error = Some(fl!("no-api-key")); return Task::none(); }
                 self.loading = true;
                 let api_key = self.config.api_key.clone();
-                return cosmic::task::future(async move {
-                    let result = api::fetch_balance(&api_key).await;
-                    Message::BalanceFetched(result)
-                });
+                return cosmic::task::future(async move { Message::BalanceFetched(api::fetch_balance(&api_key).await) });
             }
             Message::UpdateConfig(mut config) => {
-                // Re-apply env var fallback if config has no key.
-                if config.api_key.is_empty()
-                    && let Ok(env_key) = std::env::var("DEEPSEEK_API_KEY")
-                {
-                    config.api_key = env_key;
-                }
+                if config.api_key.is_empty() && let Ok(env_key) = std::env::var("DEEPSEEK_API_KEY") { config.api_key = env_key; }
                 self.config = config;
-                // Keep drafts in sync if settings not currently open.
                 if !self.settings_open {
                     self.api_key_input = self.config.api_key.clone();
                     self.interval_input = self.config.refresh_interval_secs.to_string();
                 }
             }
             Message::OpenSettings => {
-                self.settings_open = true;
-                self.show_api_key = false;
-                self.settings_error = None;
+                self.settings_open = true; self.show_api_key = false; self.settings_error = None;
                 self.api_key_input = self.config.api_key.clone();
                 self.interval_input = self.config.refresh_interval_secs.to_string();
             }
             Message::CloseSettings => {
-                self.settings_open = false;
-                self.settings_error = None;
-                // Discard drafts, restore from last-saved config.
+                self.settings_open = false; self.settings_error = None;
                 self.api_key_input = self.config.api_key.clone();
                 self.interval_input = self.config.refresh_interval_secs.to_string();
             }
-            Message::ApiKeyInputChanged(value) => {
-                self.api_key_input = value;
-            }
+            Message::ApiKeyInputChanged(value) => { self.api_key_input = value; }
             Message::IntervalInputChanged(value) => {
-                // Keep only digits so the field is always parseable.
                 self.interval_input = value.chars().filter(char::is_ascii_digit).take(6).collect();
             }
-            Message::ToggleApiKeyVisibility => {
-                self.show_api_key = !self.show_api_key;
-            }
+            Message::ToggleApiKeyVisibility => { self.show_api_key = !self.show_api_key; }
             Message::PasteFromClipboard => {
                 if let Ok(mut clipboard) = arboard::Clipboard::new() {
-                    if let Ok(text) = clipboard.get_text() {
-                        // Append pasted text to current value
-                        self.api_key_input.push_str(&text);
-                    }
+                    if let Ok(text) = clipboard.get_text() { self.api_key_input.push_str(&text); }
                 }
             }
             Message::SaveSettings => {
                 let interval = match self.interval_input.parse::<u64>() {
                     Ok(v) if v >= MIN_REFRESH_INTERVAL_SECS => v,
-                    Ok(_) => {
-                        self.settings_error = Some(fl!(
-                            "interval-too-small",
-                            min = MIN_REFRESH_INTERVAL_SECS.to_string()
-                        ));
-                        return Task::none();
-                    }
-                    Err(_) => {
-                        self.settings_error = Some(fl!("interval-invalid"));
-                        return Task::none();
-                    }
+                    Ok(_) => { self.settings_error = Some(fl!("interval-too-small", min = MIN_REFRESH_INTERVAL_SECS.to_string())); return Task::none(); }
+                    Err(_) => { self.settings_error = Some(fl!("interval-invalid")); return Task::none(); }
                 };
-
                 let api_key = self.api_key_input.trim().to_string();
-
                 self.config.api_key = api_key.clone();
                 self.config.refresh_interval_secs = interval;
-
-                if let Some(handler) = &self.config_handler {
-                    if let Err(why) = self.config.write_entry(handler) {
-                        tracing::warn!(%why, "failed to persist config");
-                        self.settings_error = Some(fl!("save-failed"));
-                        return Task::none();
-                    }
-                } else {
-                    tracing::warn!(
-                        "no config handler, changes will not persist across restarts"
-                    );
-                }
-
-                self.settings_open = false;
-                self.settings_error = None;
-                self.error = None;
-
-                if api_key.is_empty() {
-                    return Task::none();
-                }
-
+                if let Err(()) = self.persist_config() { self.settings_error = Some(fl!("save-failed")); return Task::none(); }
+                self.settings_open = false; self.settings_error = None; self.error = None;
+                if api_key.is_empty() { return Task::none(); }
                 self.loading = true;
-                return cosmic::task::future(async move {
-                    let result = api::fetch_balance(&api_key).await;
-                    Message::BalanceFetched(result)
-                });
+                return cosmic::task::future(async move { Message::BalanceFetched(api::fetch_balance(&api_key).await) });
             }
             Message::TogglePopup => {
-                let Some(main_id) = self.core.main_window_id() else {
-                    tracing::error!("no main window, cannot open popup");
-                    return Task::none();
-                };
-                return if let Some(p) = self.popup.take() {
-                    destroy_popup(p)
-                } else {
-                    let new_id = Id::unique();
-                    self.popup.replace(new_id);
-                    let mut popup_settings = self.core.applet.get_popup_settings(
-                        main_id,
-                        new_id,
-                        None,
-                        None,
-                        None,
-                    );
-                    popup_settings.positioner.size_limits = Limits::NONE
-                        .max_width(420.0)
-                        .min_width(300.0)
-                        .min_height(180.0)
-                        .max_height(800.0);
+                return if let Some(p) = self.popup.take() { destroy_popup(p) } else {
+                    let Some(main_id) = self.core.main_window_id() else { tracing::error!("no main window id"); return Task::none(); };
+                    let new_id = Id::unique(); self.popup.replace(new_id);
+                    let mut popup_settings = self.core.applet.get_popup_settings(main_id, new_id, None, None, None);
+                    popup_settings.positioner.size_limits = Limits::NONE.max_width(420.0).min_width(300.0).min_height(180.0).max_height(800.0);
                     get_popup(popup_settings)
                 }
             }
             Message::PopupClosed(id) => {
-                if self.popup.as_ref() == Some(&id) {
-                    self.popup = None;
-                }
-                // Don't leave settings form open for next popup open.
-                self.settings_open = false;
-                self.settings_error = None;
+                if self.popup.as_ref() == Some(&id) { self.popup = None; }
+                self.settings_open = false; self.settings_error = None;
             }
         }
         Task::none()
     }
 
-    fn style(&self) -> Option<cosmic::iced::theme::Style> {
-            Some(cosmic::applet::style())
+    fn style(&self) -> Option<cosmic::iced::theme::Style> { Some(cosmic::applet::style()) }
+}
+
+impl AppModel {
+    fn persist_config(&self) -> Result<(), ()> {
+        let Some(handler) = &self.config_handler else {
+            tracing::warn!("no config handler, changes won't persist"); return Ok(());
+        };
+        if let Err(why) = self.config.write_entry(handler) { tracing::warn!(%why, "failed to persist config"); return Err(()); }
+        Ok(())
+    }
+
+    fn update_spend_baseline(&mut self, balance: &BalanceResponse) {
+        let Some(current) = primary_info(balance).map(|i| parse_amount(&i.total_balance)) else { return; };
+        let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+        let baseline = parse_amount(&self.config.spend_day_start_balance);
+        let needs_reset = self.config.spend_day != today;
+        let topped_up = current > baseline;
+        if needs_reset || topped_up {
+            self.config.spend_day = today;
+            self.config.spend_day_start_balance = format!("{current:.6}");
+            let _ = self.persist_config();
         }
     }
 
-    impl AppModel {
-        /// Renders the settings form (API key + refresh interval).
-        fn view_settings(&self) -> Element<'_, Message> {
-            let mut content = widget::list_column();
+    fn spent_today(&self) -> Option<f64> {
+        let info = primary_info(self.balance.as_ref()?)?;
+        let current = parse_amount(&info.total_balance);
+        let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+        if self.config.spend_day != today { return Some(0.0); }
+        let baseline = parse_amount(&self.config.spend_day_start_balance);
+        Some((baseline - current).max(0.0))
+    }
 
-            content = content.add(widget::text::heading(fl!("settings-title")));
+    fn view_settings(&self) -> Element<'_, Message> {
+        let mut body = widget::list_column();
 
-            // --- API key field, with show/hide toggle + paste button ---
-            let api_key_field = widget::text_input(fl!("api-key-placeholder"), &self.api_key_input)
-                .on_input(Message::ApiKeyInputChanged)
-                .on_paste(Message::ApiKeyInputChanged)
-                .width(cosmic::iced::Length::Fill);
-            let api_key_field = if self.show_api_key {
-                api_key_field
-            } else {
-                api_key_field.password()
-            };
-
-            let eye_icon_name = if self.show_api_key {
-                "view-conceal-symbolic"
-            } else {
-                "view-reveal-symbolic"
-            };
-            let eye_handle: widget::icon::Handle =
-                cosmic::widget::icon::from_name(eye_icon_name).into();
-            let eye_button = widget::button::custom(widget::icon::icon(eye_handle).size(14))
-                .on_press(Message::ToggleApiKeyVisibility)
-                .class(cosmic::theme::Button::Icon);
-
-            // Paste-from-clipboard button (Wayland workaround)
-            let paste_handle: widget::icon::Handle =
-                cosmic::widget::icon::from_name("edit-paste-symbolic").into();
-            let paste_button = widget::button::custom(widget::icon::icon(paste_handle).size(14))
-                .on_press(Message::PasteFromClipboard)
-                .class(cosmic::theme::Button::Icon);
-
-            let api_key_row = widget::row(vec![
-                api_key_field.into(),
-                paste_button.into(),
-                eye_button.into(),
+        // Header
+        let back_handle: widget::icon::Handle =
+            cosmic::widget::icon::from_name("go-previous-symbolic").into();
+        body = body.add(
+            widget::row(vec![
+                widget::button::custom(widget::icon::icon(back_handle).size(16))
+                    .on_press(Message::CloseSettings)
+                    .class(cosmic::theme::Button::Icon)
+                    .into(),
+                widget::text(fl!("settings-title"))
+                    .size(18)
+                    .width(Length::Fill)
+                    .into(),
             ])
-            .spacing(4)
-            .align_y(cosmic::iced::Alignment::Center);
+            .spacing(8)
+            .align_y(Alignment::Center),
+        );
 
-            content = content.add(widget::settings::item(fl!("api-key-label"), api_key_row));
+        // ── API Key card ──────────────────────────────────────────────────────
+        let eye_icon_name = if self.show_api_key {
+            "view-conceal-symbolic"
+        } else {
+            "view-reveal-symbolic"
+        };
+        let eye_handle: widget::icon::Handle =
+            cosmic::widget::icon::from_name(eye_icon_name).into();
+        let eye_button = widget::button::custom(widget::icon::icon(eye_handle).size(14))
+            .on_press(Message::ToggleApiKeyVisibility)
+            .class(cosmic::theme::Button::Icon);
 
-            // --- Refresh interval field ---
-            let interval_field = widget::text_input("180", &self.interval_input)
-                .on_input(Message::IntervalInputChanged)
-                .on_submit(|_| Message::SaveSettings)
-                .width(cosmic::iced::Length::Fixed(90.0));
+        let paste_handle: widget::icon::Handle =
+            cosmic::widget::icon::from_name("edit-paste-symbolic").into();
+        let paste_button = widget::button::custom(widget::icon::icon(paste_handle).size(14))
+            .on_press(Message::PasteFromClipboard)
+            .class(cosmic::theme::Button::Icon);
 
-            content = content.add(widget::settings::item(
-                fl!("refresh-interval-label"),
-                widget::row(vec![
-                    interval_field.into(),
-                    widget::text::body(fl!("seconds-suffix")).into(),
-                ])
-                .spacing(6)
-                .align_y(cosmic::iced::Alignment::Center),
-            ));
+        let api_key_field = widget::text_input(fl!("api-key-placeholder"), &self.api_key_input)
+            .on_input(Message::ApiKeyInputChanged)
+            .on_paste(Message::ApiKeyInputChanged)
+            .on_submit(|_| Message::SaveSettings)
+            .width(Length::Fill);
+        let api_key_field = if self.show_api_key {
+            api_key_field
+        } else {
+            api_key_field.password()
+        };
 
-            // --- Validation / persistence error ---
-            if let Some(err) = &self.settings_error {
-                content = content.add(widget::text::body(err.clone()));
-            }
+        body = body.add(card(
+            widget::list_column()
+                .add(widget::text(fl!("api-key-label")).size(14))
+                .add(widget::text::caption(fl!("api-key-description")))
+                .add(
+                    widget::row(vec![
+                        api_key_field.into(),
+                        paste_button.into(),
+                        eye_button.into(),
+                    ])
+                    .spacing(4)
+                    .align_y(Alignment::Center),
+                ),
+        ));
 
-            // --- Cancel / Save buttons ---
-            let buttons = widget::row(vec![
-                widget::space::horizontal().into(),
+        // ── Refresh interval card ─────────────────────────────────────────────
+        let interval_field = widget::text_input("180", &self.interval_input)
+            .on_input(Message::IntervalInputChanged)
+            .on_submit(|_| Message::SaveSettings)
+            .width(Length::Fixed(90.0));
+
+        body = body.add(card(
+            widget::list_column()
+                .add(widget::text(fl!("refresh-interval-label")).size(14))
+                .add(widget::text::caption(fl!(
+                    "refresh-interval-description",
+                    min = MIN_REFRESH_INTERVAL_SECS.to_string()
+                )))
+                .add(
+                    widget::row(vec![
+                        interval_field.into(),
+                        widget::text(fl!("seconds-suffix")).size(14).into(),
+                    ])
+                    .spacing(6)
+                    .align_y(Alignment::Center),
+                ),
+        ));
+
+        // ── Error ─────────────────────────────────────────────────────────────
+        if let Some(err) = &self.settings_error {
+            body = body.add(info_block(fl!("error-prefix"), err.clone(), None));
+        }
+
+        // ── Buttons ───────────────────────────────────────────────────────────
+        body = body.add(
+            widget::row(vec![
+                widget::space::horizontal().width(Length::Fill).into(),
                 widget::button::standard(fl!("cancel"))
                     .on_press(Message::CloseSettings)
                     .into(),
@@ -589,10 +755,11 @@ impl cosmic::Application for AppModel {
                     .on_press(Message::SaveSettings)
                     .into(),
             ])
-            .spacing(8);
+            .spacing(8),
+        );
 
-            content = content.add(buttons);
-
-            self.core.applet.popup_container(content).into()
-        }
+        self.core.applet.popup_container(
+            widget::container(body).padding([12, 8]).width(Length::Fill),
+        ).into()
     }
+}

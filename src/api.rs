@@ -19,8 +19,10 @@ pub struct BalanceInfo {
     pub currency: String,
     pub total_balance: String,
     #[serde(default)]
+    #[allow(dead_code)]
     pub topped_up_balance: String,
     #[serde(default)]
+    #[allow(dead_code)]
     pub granted_balance: String,
 }
 
@@ -52,6 +54,9 @@ pub async fn fetch_balance(api_key: &str) -> Result<BalanceResponse, String> {
     let status = response.status();
     if !status.is_success() {
         let body = response.text().await.unwrap_or_default();
+        if status.as_u16() == 401 || status.as_u16() == 403 {
+            return Err("AUTH_ERROR".to_string());
+        }
         return Err(format!(
             "API error ({}): {}",
             status.as_u16(),
