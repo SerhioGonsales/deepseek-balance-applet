@@ -359,10 +359,20 @@ impl cosmic::Application for AppModel {
         let row = widget::row(vec![icon.into(), label.into()])
             .spacing(2)
             .align_y(Alignment::Center);
-        let button = widget::button::custom(row)
-            .class(cosmic::theme::Button::AppletIcon)
-            .on_press(Message::TogglePopup)
-            .padding([6, 6]);
+
+        let suggested = self.core.applet.suggested_size(true);
+        let (major, minor) = self.core.applet.suggested_padding(true);
+        let (h_pad, v_pad) = if self.core.applet.is_horizontal() {
+            (major, minor)
+        } else {
+            (minor, major)
+        };
+        let button = widget::button::custom(
+            widget::container(row).center_y(Length::Fixed(f32::from(suggested.1 + 2 * v_pad))),
+        )
+        .on_press(Message::TogglePopup)
+        .padding([0, h_pad as u16])
+        .class(cosmic::theme::Button::AppletIcon);
         self.core.applet.autosize_window(button).into()
     }
 
