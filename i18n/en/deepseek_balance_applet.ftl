@@ -6,20 +6,15 @@ loading = Loading…
 refresh = Refresh
 error-prefix = Error
 settings-title = Settings
-api-key-label = API Key
 api-key-placeholder = sk-…
 api-key-description = Find your key at platform.deepseek.com
-refresh-interval-label = Refresh Interval
 refresh-interval-label-short = Every
-refresh-interval-description = Minimum { $min }s
 seconds-suffix = s
 save = Save
 cancel = Cancel
-interval-too-small = Minimum { $min } seconds
-interval-invalid = Enter a number
+interval-too-small = Minimum { $min }s
 save-failed = Failed to save
 open-settings = Open Settings
-language-label = Language
 
 spent-today-label = Spent today
 
@@ -39,9 +34,7 @@ offline = No internet connection. Check your network and try again.
 bad-auth-title = Invalid API Key
 bad-auth = The API key is invalid or has expired. Update it in Settings.
 badge-auth-error = Wrong Key
-badge-auth-error-tooltip = Click to open Settings
 badge-no-network = No Network
-badge-no-network-tooltip = Check your internet connection
 
 updated-just-now = Just now
 updated-seconds-ago = { $n }s ago
