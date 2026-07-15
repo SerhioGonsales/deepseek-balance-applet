@@ -918,18 +918,15 @@ impl AppModel {
         // Language row
         let lang_handle: widget::icon::Handle =
             cosmic::widget::icon::from_name("preferences-desktop-locale-symbolic").into();
-        let current_lang = if self.config.language == "ru" {
-            "RU"
-        } else {
-            "EN"
-        };
+        let current_lang = if self.config.language == "ru" { "RU" } else { "EN" };
         settings_list = settings_list.add(
             widget::row(vec![
                 widget::icon::icon(lang_handle).size(16).into(),
-                widget::space::horizontal().width(Length::Fill).into(),
                 widget::button::standard(current_lang)
                     .on_press(Message::ToggleLanguage)
+                    .padding([2, 8])
                     .into(),
+                widget::space::horizontal().width(Length::Fill).into(),
             ])
             .spacing(6)
             .align_y(Alignment::Center),
