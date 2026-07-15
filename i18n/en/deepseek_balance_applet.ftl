@@ -34,7 +34,7 @@ offline = No internet connection. Check your network and try again.
 bad-auth-title = Invalid API Key
 bad-auth = The API key is invalid or has expired. Update it in Settings.
 badge-auth-error = Wrong Key
-badge-no-network = No Network
+badge-no-network = Offline
 
 updated-just-now = Just now
 updated-seconds-ago = { $n }s ago

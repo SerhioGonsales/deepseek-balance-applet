@@ -855,9 +855,9 @@ impl AppModel {
             widget::tooltip::Position::Top,
         );
         let eye_icon_name = if self.show_api_key {
-            "eye-not-looking-symbolic"
+            "view-conceal-symbolic"
         } else {
-            "eye-open-negative-filled-symbolic"
+            "view-reveal-symbolic"
         };
         let eye_handle: widget::icon::Handle =
             cosmic::widget::icon::from_name(eye_icon_name).into();
