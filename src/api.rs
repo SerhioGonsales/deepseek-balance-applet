@@ -57,11 +57,7 @@ pub async fn fetch_balance(api_key: &str) -> Result<BalanceResponse, String> {
         if status.as_u16() == 401 || status.as_u16() == 403 {
             return Err("AUTH_ERROR".to_string());
         }
-        return Err(format!(
-            "API error ({}): {}",
-            status.as_u16(),
-            body.trim()
-        ));
+        return Err(format!("API error ({}): {}", status.as_u16(), body.trim()));
     }
 
     response
