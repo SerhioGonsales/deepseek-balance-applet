@@ -362,11 +362,8 @@ impl cosmic::Application for AppModel {
         let button = widget::button::custom(row)
             .class(cosmic::theme::Button::AppletIcon)
             .on_press(Message::TogglePopup)
-            .height(Length::Fill)
-            .padding([0, 6]);
-        widget::container(self.core.applet.autosize_window(button))
-            .height(Length::Fill)
-            .into()
+            .padding([6, 6]);
+        self.core.applet.autosize_window(button).into()
     }
 
     fn view_window(&self, _id: Id) -> Element<'_, Self::Message> {
