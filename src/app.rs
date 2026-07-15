@@ -600,11 +600,8 @@ impl cosmic::Application for AppModel {
                 let _ = self.persist_config();
             }
             Message::SaveSettings => {
-                let interval = match self.interval_input.parse::<u64>() {
-                    Ok(v) if v >= MIN_REFRESH_INTERVAL_SECS => v,
-                    Ok(_) => { self.settings_error = Some(fl!("interval-too-small", min = MIN_REFRESH_INTERVAL_SECS.to_string())); return Task::none(); }
-                    Err(_) => { self.settings_error = Some(fl!("interval-invalid")); return Task::none(); }
-                };
+                let interval = self.interval_input.parse::<u64>().unwrap_or(MIN_REFRESH_INTERVAL_SECS);
+                let interval = interval.max(MIN_REFRESH_INTERVAL_SECS);
                 let api_key = self.api_key_input.trim().to_string();
                 self.config.api_key = api_key.clone();
                 self.config.refresh_interval_secs = interval;
@@ -689,6 +686,11 @@ impl AppModel {
         // ── API Key card ──────────────────────────────────────────────────────
         let key_handle: widget::icon::Handle =
             cosmic::widget::icon::from_name("dialog-password-symbolic").into();
+        let key_icon = widget::tooltip::tooltip(
+            widget::icon::icon(key_handle).size(16),
+            widget::text(fl!("api-key-description")).size(12),
+            widget::tooltip::Position::Top,
+        );
         let eye_icon_name = if self.show_api_key {
             "view-conceal-symbolic"
         } else {
@@ -718,58 +720,41 @@ impl AppModel {
         };
 
         body = body.add(card(
-            widget::list_column()
-                .add(
-                    widget::row(vec![
-                        widget::icon::icon(key_handle).size(16).into(),
-                        widget::text(fl!("api-key-label")).size(14).into(),
-                    ])
-                    .spacing(6)
-                    .align_y(Alignment::Center),
-                )
-                .add(widget::text::caption(fl!("api-key-description")))
-                .add(
-                    widget::row(vec![
-                        api_key_field.into(),
-                        paste_button.into(),
-                        eye_button.into(),
-                    ])
-                    .spacing(4)
-                    .align_y(Alignment::Center),
-                ),
+            widget::row(vec![
+                key_icon.into(),
+                api_key_field.into(),
+                paste_button.into(),
+                eye_button.into(),
+            ])
+            .spacing(6)
+            .align_y(Alignment::Center),
         ));
 
         // ── Refresh interval card ─────────────────────────────────────────────
-        let clock_handle: widget::icon::Handle =
-            cosmic::widget::icon::from_name("preferences-system-time-symbolic").into();
+        let timer_handle: widget::icon::Handle =
+            cosmic::widget::icon::from_name("view-refresh-symbolic").into();
         let interval_field = widget::text_input("180", &self.interval_input)
             .on_input(Message::IntervalInputChanged)
             .on_submit(|_| Message::SaveSettings)
-            .width(Length::Fixed(90.0));
+            .width(Length::Fixed(70.0));
+        let interval_ok = self.interval_input.parse::<u64>().map_or(true, |v| v >= MIN_REFRESH_INTERVAL_SECS);
 
-        body = body.add(card(
-            widget::list_column()
-                .add(
-                    widget::row(vec![
-                        widget::icon::icon(clock_handle).size(16).into(),
-                        widget::text(fl!("refresh-interval-label")).size(14).into(),
-                    ])
-                    .spacing(6)
-                    .align_y(Alignment::Center),
-                )
-                .add(widget::text::caption(fl!(
-                    "refresh-interval-description",
-                    min = MIN_REFRESH_INTERVAL_SECS.to_string()
-                )))
-                .add(
-                    widget::row(vec![
-                        interval_field.into(),
-                        widget::text(fl!("seconds-suffix")).size(14).into(),
-                    ])
-                    .spacing(6)
-                    .align_y(Alignment::Center),
-                ),
-        ));
+        let mut interval_col = widget::list_column();
+        interval_col = interval_col.add(
+            widget::row(vec![
+                widget::icon::icon(timer_handle).size(16).into(),
+                interval_field.into(),
+                widget::text(fl!("seconds-suffix")).size(14).into(),
+            ])
+            .spacing(6)
+            .align_y(Alignment::Center),
+        );
+        if !interval_ok {
+            interval_col = interval_col.add(
+                widget::text::caption(fl!("interval-too-small", min = MIN_REFRESH_INTERVAL_SECS.to_string()))
+            );
+        }
+        body = body.add(card(interval_col));
 
         // ── Language ───────────────────────────────────────────────────────────
         let lang_handle: widget::icon::Handle =
@@ -778,7 +763,7 @@ impl AppModel {
         body = body.add(card(
             widget::row(vec![
                 widget::icon::icon(lang_handle).size(16).into(),
-                widget::text(fl!("language-label")).size(14).width(Length::Fill).into(),
+                widget::space::horizontal().width(Length::Fill).into(),
                 widget::button::standard(current_lang)
                     .on_press(Message::ToggleLanguage)
                     .into(),
