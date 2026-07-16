@@ -325,18 +325,18 @@ impl cosmic::Application for AppModel {
             "--".into()
         };
 
-        let icon_color = self
-            .core
-            .applet
-            .theme()
-            .map_or(cosmic::iced::Color::from_rgb(1.0, 1.0, 1.0), |t| {
-                let a = t.cosmic().accent_color();
-                cosmic::iced::Color::from_rgba(a.red, a.green, a.blue, a.alpha)
-            });
+        let icon_color =
+            self.core
+                .applet
+                .theme()
+                .map_or(cosmic::iced::Color::from_rgb(1.0, 1.0, 1.0), |t| {
+                    let a = t.cosmic().accent_color();
+                    cosmic::iced::Color::from_rgba(a.red, a.green, a.blue, a.alpha)
+                });
 
-        let svg_handle = cosmic::widget::svg::Handle::from_memory(
-            include_bytes!("../resources/deepseek-50.svg"),
-        );
+        let svg_handle = cosmic::widget::svg::Handle::from_memory(include_bytes!(
+            "../resources/deepseek-50.svg"
+        ));
         let icon = cosmic::widget::Svg::new(svg_handle)
             .content_fit(cosmic::iced::ContentFit::Contain)
             .width(Length::Fixed(20.0))
@@ -470,13 +470,14 @@ impl cosmic::Application for AppModel {
         if show_card {
             // API unavailable banner
             if let Some(ref balance) = self.balance
-                && !balance.is_available {
-                    body = body.add(info_block(
-                        fl!("api-unavailable-title"),
-                        fl!("api-unavailable"),
-                        None,
-                    ));
-                }
+                && !balance.is_available
+            {
+                body = body.add(info_block(
+                    fl!("api-unavailable-title"),
+                    fl!("api-unavailable"),
+                    None,
+                ));
+            }
 
             let (symbol, amount) = if let Some(ref balance) = self.balance {
                 if let Some(info) = primary_info(balance) {
@@ -550,21 +551,20 @@ impl cosmic::Application for AppModel {
             body = body.add(card(balance_items));
 
             // Spent today card (only with real balance)
-            if has_balance
-                && let Some(spent_today) = self.spent_today() {
-                    body = body.add(card(
-                        widget::row(vec![
-                            widget::text(fl!("spent-today-label"))
-                                .size(14)
-                                .width(Length::Fill)
-                                .into(),
-                            widget::text(format!("{symbol}{spent_today:.2}"))
-                                .size(14)
-                                .into(),
-                        ])
-                        .align_y(Alignment::Center),
-                    ));
-                }
+            if has_balance && let Some(spent_today) = self.spent_today() {
+                body = body.add(card(
+                    widget::row(vec![
+                        widget::text(fl!("spent-today-label"))
+                            .size(14)
+                            .width(Length::Fill)
+                            .into(),
+                        widget::text(format!("{symbol}{spent_today:.2}"))
+                            .size(14)
+                            .into(),
+                    ])
+                    .align_y(Alignment::Center),
+                ));
+            }
         }
 
         // ── Footer ────────────────────────────────────────────────────────────
@@ -646,9 +646,9 @@ impl cosmic::Application for AppModel {
                                         ))
                                         .await
                                         .is_err()
-                                    {
-                                        break;
-                                    }
+                                {
+                                    break;
+                                }
                             }
                         },
                     )
@@ -728,9 +728,10 @@ impl cosmic::Application for AppModel {
             }
             Message::PasteFromClipboard => {
                 if let Ok(mut clipboard) = arboard::Clipboard::new()
-                    && let Ok(text) = clipboard.get_text() {
-                        self.api_key_input.push_str(&text);
-                    }
+                    && let Ok(text) = clipboard.get_text()
+                {
+                    self.api_key_input.push_str(&text);
+                }
             }
             Message::ToggleLanguage => {
                 let new_lang = if self.config.language == "ru" {
@@ -936,7 +937,11 @@ impl AppModel {
         // Language row
         let lang_handle: widget::icon::Handle =
             cosmic::widget::icon::from_name("preferences-desktop-locale-symbolic").into();
-        let current_lang = if self.config.language == "ru" { "RU" } else { "EN" };
+        let current_lang = if self.config.language == "ru" {
+            "RU"
+        } else {
+            "EN"
+        };
         settings_list = settings_list.add(
             widget::row(vec![
                 widget::icon::icon(lang_handle).size(16).into(),

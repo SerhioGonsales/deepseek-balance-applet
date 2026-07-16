@@ -1,1 +1,1 @@
-imports_granularity = "Module"
+# Stable rustfmt options only (nightly features not used)
