@@ -325,9 +325,33 @@ impl cosmic::Application for AppModel {
             "--".into()
         };
 
-        let icon_handle =
-            widget::icon::from_raster_bytes(include_bytes!("../resources/icons8-deepseek-48.png"));
-        let icon = widget::icon::icon(icon_handle).size(20);
+        let icon_color = if offline {
+            cosmic::iced::Color::from_rgb(0.95, 0.25, 0.25)
+        } else if auth_err {
+            cosmic::iced::Color::from_rgb(0.90, 0.70, 0.10)
+        } else {
+            self.core
+                .applet
+                .theme()
+                .map(|t| {
+                    let a = t.cosmic().accent_color();
+                    cosmic::iced::Color::from_rgba(a.red, a.green, a.blue, a.alpha)
+                })
+                .unwrap_or(cosmic::iced::Color::from_rgb(1.0, 1.0, 1.0))
+        };
+
+        let svg_handle = cosmic::widget::svg::Handle::from_memory(
+            include_bytes!("../resources/icons8-deepseek-50.svg"),
+        );
+        let icon = cosmic::widget::Svg::new(svg_handle)
+            .content_fit(cosmic::iced::ContentFit::Contain)
+            .width(Length::Fixed(20.0))
+            .height(Length::Fixed(20.0))
+            .class(cosmic::theme::Svg::Custom(std::rc::Rc::new(
+                move |_theme: &cosmic::Theme| cosmic::widget::svg::Style {
+                    color: Some(icon_color),
+                },
+            )));
         let label_text = widget::text(format!(" {balance_str}"))
             .font(cosmic::iced::Font::with_name("Ubuntu Mono"))
             .size(13);
