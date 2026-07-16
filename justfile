@@ -65,7 +65,7 @@ install-user: build-release
     install -Dm0755 {{ cargo-target-dir / 'release' / name }} {{home-bin-dst}}
     install -Dm0644 resources/app.desktop {{home-desktop-dst}}
     install -Dm0644 resources/icon.svg {{home-icon-dst}}
-    install -Dm0644 resources/icons8-deepseek-48.png {{home-icon-png-dst}}
+    install -Dm0644 resources/deepseek-48.png {{home-icon-png-dst}}
     @echo "Installed to ~/.local. Add via Settings > Desktop > Panel."
     @echo "Ensure ~/.local/bin is on your PATH."
 

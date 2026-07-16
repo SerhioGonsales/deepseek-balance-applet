@@ -6,7 +6,7 @@
 #   curl -sSL https://raw.githubusercontent.com/serhio/deepseek-balance-applet/main/install.sh | bash
 set -euo pipefail
 
-REPO_URL="https://github.com/serhio/deepseek-balance-applet.git"
+REPO_URL="https://github.com/SerhioGonsales/deepseek-balance-applet.git"
 BRANCH="main"
 
 command -v cargo >/dev/null 2>&1 || {

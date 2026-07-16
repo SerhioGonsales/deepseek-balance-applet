@@ -86,11 +86,11 @@ fn card<'a>(content: impl Into<Element<'a, Message>>) -> Element<'a, Message> {
         .into()
 }
 
-fn info_block<'a>(
+fn info_block(
     title: String,
     message: String,
-    action: Option<Element<'a, Message>>,
-) -> Element<'a, Message> {
+    action: Option<Element<'_, Message>>,
+) -> Element<'_, Message> {
     let mut col = widget::list_column();
     col = col.add(widget::text::caption(title));
     col = col.add(widget::text::body(message));
@@ -306,7 +306,7 @@ impl cosmic::Application for AppModel {
         let offline = self
             .error
             .as_ref()
-            .map_or(false, |e| e.starts_with("network error:"));
+            .is_some_and(|e| e.starts_with("network error:"));
         let is_err = offline || auth_err;
         let balance_str: String = if self.config.api_key.is_empty() {
             "?".into()
@@ -329,14 +329,13 @@ impl cosmic::Application for AppModel {
             .core
             .applet
             .theme()
-            .map(|t| {
+            .map_or(cosmic::iced::Color::from_rgb(1.0, 1.0, 1.0), |t| {
                 let a = t.cosmic().accent_color();
                 cosmic::iced::Color::from_rgba(a.red, a.green, a.blue, a.alpha)
-            })
-            .unwrap_or(cosmic::iced::Color::from_rgb(1.0, 1.0, 1.0));
+            });
 
         let svg_handle = cosmic::widget::svg::Handle::from_memory(
-            include_bytes!("../resources/icons8-deepseek-50.svg"),
+            include_bytes!("../resources/deepseek-50.svg"),
         );
         let icon = cosmic::widget::Svg::new(svg_handle)
             .content_fit(cosmic::iced::ContentFit::Contain)
@@ -390,11 +389,12 @@ impl cosmic::Application for AppModel {
             widget::container(row).center_y(Length::Fixed(f32::from(suggested.1 + 2 * v_pad))),
         )
         .on_press(Message::TogglePopup)
-        .padding([0, h_pad as u16])
+        .padding([0, h_pad])
         .class(cosmic::theme::Button::AppletIcon);
         self.core.applet.autosize_window(button).into()
     }
 
+    #[allow(clippy::too_many_lines)]
     fn view_window(&self, _id: Id) -> Element<'_, Self::Message> {
         if self.settings_open {
             return self.view_settings();
@@ -402,11 +402,8 @@ impl cosmic::Application for AppModel {
 
         let mut body = widget::list_column();
 
-        // ── Header: DeepSeek icon + title + gear ─────────────────────────────
-        let icon_handle =
-            widget::icon::from_raster_bytes(include_bytes!("../resources/icons8-deepseek-48.png"));
+        // ── Header: title + gear ────────────────────────────────────────────
         let header = widget::row(vec![
-            widget::icon::icon(icon_handle).size(20).into(),
             widget::text(fl!("balance-title"))
                 .size(18)
                 .width(Length::Fill)
@@ -472,15 +469,14 @@ impl cosmic::Application for AppModel {
         let show_card = has_balance || self.error.is_some();
         if show_card {
             // API unavailable banner
-            if let Some(ref balance) = self.balance {
-                if !balance.is_available {
+            if let Some(ref balance) = self.balance
+                && !balance.is_available {
                     body = body.add(info_block(
                         fl!("api-unavailable-title"),
                         fl!("api-unavailable"),
                         None,
                     ));
                 }
-            }
 
             let (symbol, amount) = if let Some(ref balance) = self.balance {
                 if let Some(info) = primary_info(balance) {
@@ -496,7 +492,7 @@ impl cosmic::Application for AppModel {
             };
 
             let status_badge: Element<'_, Message> = {
-                let stale = self.last_updated.map_or(true, |t| {
+                let stale = self.last_updated.is_none_or(|t| {
                     (chrono::Local::now() - t).num_minutes() >= STALE_THRESHOLD_MINS
                 });
                 if self.loading {
@@ -516,7 +512,7 @@ impl cosmic::Application for AppModel {
                 } else if self
                     .error
                     .as_ref()
-                    .map_or(false, |e| e.starts_with("network error:"))
+                    .is_some_and(|e| e.starts_with("network error:"))
                 {
                     widget::button::custom(badge_with_tooltip(
                         badge_destructive(fl!("badge-no-network")),
@@ -554,8 +550,8 @@ impl cosmic::Application for AppModel {
             body = body.add(card(balance_items));
 
             // Spent today card (only with real balance)
-            if has_balance {
-                if let Some(spent_today) = self.spent_today() {
+            if has_balance
+                && let Some(spent_today) = self.spent_today() {
                     body = body.add(card(
                         widget::row(vec![
                             widget::text(fl!("spent-today-label"))
@@ -569,7 +565,6 @@ impl cosmic::Application for AppModel {
                         .align_y(Alignment::Center),
                     ));
                 }
-            }
         }
 
         // ── Footer ────────────────────────────────────────────────────────────
@@ -644,8 +639,8 @@ impl cosmic::Application for AppModel {
                             loop {
                                 tokio::time::sleep(std::time::Duration::from_secs(interval_secs))
                                     .await;
-                                if !api_key.is_empty() {
-                                    if channel
+                                if !api_key.is_empty()
+                                    && channel
                                         .send(Message::BalanceFetched(
                                             api::fetch_balance(&api_key).await,
                                         ))
@@ -654,7 +649,6 @@ impl cosmic::Application for AppModel {
                                     {
                                         break;
                                     }
-                                }
                             }
                         },
                     )
@@ -669,6 +663,7 @@ impl cosmic::Application for AppModel {
         ])
     }
 
+    #[allow(clippy::too_many_lines)]
     fn update(&mut self, message: Self::Message) -> Task<cosmic::Action<Self::Message>> {
         match message {
             Message::BalanceFetched(result) => {
@@ -732,11 +727,10 @@ impl cosmic::Application for AppModel {
                 self.show_api_key = !self.show_api_key;
             }
             Message::PasteFromClipboard => {
-                if let Ok(mut clipboard) = arboard::Clipboard::new() {
-                    if let Ok(text) = clipboard.get_text() {
+                if let Ok(mut clipboard) = arboard::Clipboard::new()
+                    && let Ok(text) = clipboard.get_text() {
                         self.api_key_input.push_str(&text);
                     }
-                }
             }
             Message::ToggleLanguage => {
                 let new_lang = if self.config.language == "ru" {
@@ -757,7 +751,7 @@ impl cosmic::Application for AppModel {
                     .unwrap_or(MIN_REFRESH_INTERVAL_SECS);
                 let interval = interval.max(MIN_REFRESH_INTERVAL_SECS);
                 let api_key = self.api_key_input.trim().to_string();
-                self.config.api_key = api_key.clone();
+                self.config.api_key.clone_from(&api_key);
                 self.config.refresh_interval_secs = interval;
                 if let Err(()) = self.persist_config() {
                     self.settings_error = Some(fl!("save-failed"));
@@ -851,6 +845,7 @@ impl AppModel {
         Some((baseline - current).max(0.0))
     }
 
+    #[allow(clippy::too_many_lines)]
     fn view_settings(&self) -> Element<'_, Message> {
         let mut body = widget::list_column();
 

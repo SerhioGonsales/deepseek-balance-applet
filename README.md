@@ -3,7 +3,7 @@
 A small [COSMIC](https://github.com/pop-os/cosmic-epoch) panel applet that shows your
 [DeepSeek](https://platform.deepseek.com/) API account balance, right in the panel.
 
-![screenshot placeholder](docs/screenshot.png)
+![screenshot](docs/screenshot.png)
 
 ## Features
 
@@ -21,7 +21,7 @@ A small [COSMIC](https://github.com/pop-os/cosmic-epoch) panel applet that shows
 Requires [Rust](https://rustup.rs) and [`just`](https://github.com/casey/just):
 
 ```sh
-curl -sSL https://raw.githubusercontent.com/serhio/deepseek-balance-applet/main/install.sh | bash
+https://raw.githubusercontent.com/SerhioGonsales/deepseek-balance-applet/main/install.sh
 ```
 
 This clones the repo, builds a release binary, and installs to `~/.local`.
@@ -29,7 +29,7 @@ This clones the repo, builds a release binary, and installs to `~/.local`.
 ### From source
 
 ```sh
-git clone https://github.com/serhio/deepseek-balance-applet.git
+git clone https://github.com/SerhioGonsales/deepseek-balance-applet.git
 cd deepseek-balance-applet
 
 just install-user   # installs to ~/.local, no root needed

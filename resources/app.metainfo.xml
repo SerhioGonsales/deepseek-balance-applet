@@ -5,10 +5,8 @@
   <project_license>MPL-2.0 (Mozilla Public License 2.0)</project_license>
   <name>Deepseek Balance Applet</name>
   <summary>DeepSeek balance monitor for COSMIC desktop</summary>
-  <icon type="remote" width="64" height="64" scale="1">
-    https://github.com/pop-os/cosmic-app-template/raw/main/resources/icons/hicolor/scalable/apps/icon.svg
-  </icon>
-  <url type="vcs-browser">https://github.com/pop-os/cosmic-app-template</url>
+  <icon type="stock">com.github.serhio.DeepSeekBalance</icon>
+  <url type="vcs-browser">https://github.com/SerhioGonsales/deepseek-balance-applet</url>
   <launchable type="desktop-id">com.github.serhio.DeepSeekBalance.desktop</launchable>
   <provides>
     <id>com.system76.CosmicApplet</id>

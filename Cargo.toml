@@ -2,9 +2,10 @@
 name = "deepseek-balance-applet"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.85"
 license = "MPL-2.0 (Mozilla Public License 2.0)"
 description = "DeepSeek balance monitor for COSMIC desktop"
-repository = "https://github.com/serhio/deepseek-balance-applet"
+repository = "https://github.com/SerhioGonsales/deepseek-balance-applet"
 
 [dependencies]
 arboard = { version = "3", default-features = false, features = ["wayland-data-control"] }
