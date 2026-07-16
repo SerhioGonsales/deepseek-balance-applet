@@ -62,3 +62,5 @@ the session.
 ## License
 
 [MPL-2.0](LICENSE)
+
+> DeepSeek whale icon by [Icons8](https://icons8.com)
