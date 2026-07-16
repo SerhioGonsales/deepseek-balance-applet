@@ -325,20 +325,15 @@ impl cosmic::Application for AppModel {
             "--".into()
         };
 
-        let icon_color = if offline {
-            cosmic::iced::Color::from_rgb(0.95, 0.25, 0.25)
-        } else if auth_err {
-            cosmic::iced::Color::from_rgb(0.90, 0.70, 0.10)
-        } else {
-            self.core
-                .applet
-                .theme()
-                .map(|t| {
-                    let a = t.cosmic().accent_color();
-                    cosmic::iced::Color::from_rgba(a.red, a.green, a.blue, a.alpha)
-                })
-                .unwrap_or(cosmic::iced::Color::from_rgb(1.0, 1.0, 1.0))
-        };
+        let icon_color = self
+            .core
+            .applet
+            .theme()
+            .map(|t| {
+                let a = t.cosmic().accent_color();
+                cosmic::iced::Color::from_rgba(a.red, a.green, a.blue, a.alpha)
+            })
+            .unwrap_or(cosmic::iced::Color::from_rgb(1.0, 1.0, 1.0));
 
         let svg_handle = cosmic::widget::svg::Handle::from_memory(
             include_bytes!("../resources/icons8-deepseek-50.svg"),
