@@ -11,6 +11,7 @@ A small [COSMIC](https://github.com/pop-os/cosmic-epoch) panel applet that shows
 - Popup with a full breakdown: total / topped-up / granted balance
 - Auto-refreshes on a configurable interval (minimum 30s)
 - Manual refresh button
+- Follows system color scheme
 - API key and refresh interval configurable from the applet itself
 - Falls back to `DEEPSEEK_API_KEY` environment variable
 
@@ -21,7 +22,7 @@ A small [COSMIC](https://github.com/pop-os/cosmic-epoch) panel applet that shows
 Requires [Rust](https://rustup.rs) and [`just`](https://github.com/casey/just):
 
 ```sh
-https://raw.githubusercontent.com/SerhioGonsales/deepseek-balance-applet/main/install.sh
+curl -sSL https://raw.githubusercontent.com/SerhioGonsales/deepseek-balance-applet/main/install.sh | bash
 ```
 
 This clones the repo, builds a release binary, and installs to `~/.local`.
