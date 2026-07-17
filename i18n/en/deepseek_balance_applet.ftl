@@ -35,6 +35,7 @@ bad-auth-title = Invalid API Key
 bad-auth = The API key is invalid or has expired. Update it in Settings.
 badge-auth-error = Wrong Key
 badge-no-network = Offline
+badge-no-api-key = No API Key
 badge-set-api-key = Set API Key
 
 set-api-key = Please set your API key in Settings

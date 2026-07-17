@@ -35,6 +35,7 @@ bad-auth-title = Неверный API-ключ
 bad-auth = API-ключ недействителен или истёк. Обновите его в Настройках.
 badge-auth-error = Неверный ключ
 badge-no-network = Нет сети
+badge-no-api-key = Нет API-ключа
 badge-set-api-key = Укажите ключ
 
 set-api-key = Задайте API-ключ в Настройках
