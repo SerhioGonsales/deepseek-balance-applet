@@ -1,3 +1,5 @@
+88011Qq
+
 # DeepSeek Balance
 
 A small [COSMIC](https://github.com/pop-os/cosmic-epoch) panel applet that shows your
@@ -50,6 +52,12 @@ After installation, open **Settings → Desktop → Panel → Applets** and
 add **DeepSeek Balance**.
 
 ### Uninstalling
+
+```sh
+curl -sSL https://raw.githubusercontent.com/SerhioGonsales/deepseek-balance-applet/main/uninstall.sh | bash
+```
+
+If you built from source:
 
 ```sh
 just uninstall-user   # if you used install-user
