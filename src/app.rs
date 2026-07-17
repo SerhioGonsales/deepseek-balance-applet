@@ -310,7 +310,7 @@ impl cosmic::Application for AppModel {
         let no_key = self.config.api_key.is_empty();
         let is_err = offline || auth_err || no_key;
         let balance_str: String = if no_key {
-            fl!("badge-auth-error")
+            fl!("badge-set-api-key")
         } else if offline {
             fl!("badge-no-network")
         } else if auth_err {
@@ -428,9 +428,14 @@ impl cosmic::Application for AppModel {
                 fl!("no-api-key-title"),
                 fl!("no-api-key"),
                 Some(
-                    widget::button::standard(fl!("open-settings"))
-                        .on_press(Message::OpenSettings)
-                        .into(),
+                    widget::row(vec![
+                        badge_warning(fl!("badge-set-api-key")),
+                        widget::space::horizontal().width(8).into(),
+                        widget::button::standard(fl!("open-settings"))
+                            .on_press(Message::OpenSettings)
+                            .into(),
+                    ])
+                    .into(),
                 ),
             ));
             return self
