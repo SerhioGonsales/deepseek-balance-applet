@@ -11,7 +11,7 @@ env:
 jobs:
   release:
     name: Build & Publish Release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04 # older glibc for broader compatibility
     steps:
       - uses: actions/checkout@v4
 

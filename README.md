@@ -19,15 +19,23 @@ A small [COSMIC](https://github.com/pop-os/cosmic-epoch) panel applet that shows
 
 ### One-liner
 
-Requires [Rust](https://rustup.rs) and [`just`](https://github.com/casey/just):
+Requires nothing — just curl and bash:
 
 ```sh
 curl -sSL https://raw.githubusercontent.com/SerhioGonsales/deepseek-balance-applet/main/install.sh | bash
 ```
 
-This clones the repo, builds a release binary, and installs to `~/.local`.
+This downloads the latest pre-built binary from GitHub Releases and installs to `~/.local`.
+
+Or a specific version:
+
+```sh
+curl -sSL https://raw.githubusercontent.com/SerhioGonsales/deepseek-balance-applet/main/install.sh | bash -s v0.1.0
+```
 
 ### From source
+
+Requires [Rust](https://rustup.rs) and [`just`](https://github.com/casey/just):
 
 ```sh
 git clone https://github.com/SerhioGonsales/deepseek-balance-applet.git

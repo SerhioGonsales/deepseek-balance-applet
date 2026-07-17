@@ -3,35 +3,40 @@
 # (~/.local — no sudo needed).
 #
 # Usage:
-#   curl -sSL https://raw.githubusercontent.com/serhio/deepseek-balance-applet/main/install.sh | bash
+#   curl -sSL https://raw.githubusercontent.com/SerhioGonsales/deepseek-balance-applet/main/install.sh | bash
 set -euo pipefail
 
-REPO_URL="https://github.com/SerhioGonsales/deepseek-balance-applet.git"
-BRANCH="main"
+REPO="SerhioGonsales/deepseek-balance-applet"
+VERSION="${1:-latest}"
+BIN_DIR="${HOME}/.local/bin"
+ICON_DIR="${HOME}/.local/share/icons/hicolor/scalable/apps"
+DESKTOP_DIR="${HOME}/.local/share/applications"
+APP_ID="com.github.serhio.DeepSeekBalance"
 
-command -v cargo >/dev/null 2>&1 || {
-    echo "error: cargo/rust not found. Install it from https://rustup.rs first." >&2
-    exit 1
-}
-command -v just >/dev/null 2>&1 || {
-    echo "error: 'just' not found. Install with: cargo install just" >&2
-    exit 1
-}
-command -v git >/dev/null 2>&1 || {
-    echo "error: git not found." >&2
-    exit 1
-}
+echo "Downloading deepseek-balance-applet..."
 
-tmp_dir="$(mktemp -d)"
-trap 'rm -rf "$tmp_dir"' EXIT
+if [ "$VERSION" = "latest" ]; then
+    URL="https://github.com/${REPO}/releases/latest/download/deepseek-balance-applet"
+else
+    URL="https://github.com/${REPO}/releases/download/${VERSION}/deepseek-balance-applet"
+fi
 
-echo "Cloning ${REPO_URL} (${BRANCH})..."
-git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$tmp_dir/src"
+mkdir -p "$BIN_DIR"
+curl -sSLf "$URL" -o "$BIN_DIR/deepseek-balance-applet"
+chmod +x "$BIN_DIR/deepseek-balance-applet"
 
-echo "Building release binary..."
-cd "$tmp_dir/src"
-just install-user
+echo "Installing desktop entry and icon..."
+
+# Download icon and desktop file from the repo
+curl -sSLf "https://raw.githubusercontent.com/${REPO}/main/resources/icon.svg" \
+    -o /tmp/cosmic-applet-icon.svg
+curl -sSLf "https://raw.githubusercontent.com/${REPO}/main/resources/app.desktop" \
+    -o /tmp/cosmic-applet.desktop
+
+mkdir -p "$ICON_DIR" "$DESKTOP_DIR"
+install -Dm0644 /tmp/cosmic-applet-icon.svg "$ICON_DIR/${APP_ID}.svg"
+install -Dm0644 /tmp/cosmic-applet.desktop "$DESKTOP_DIR/${APP_ID}.desktop"
 
 echo
 echo "Done! Open Settings > Desktop > Panel > Applets and add 'DeepSeek Balance'."
-echo "If it isn't listed, add ~/.local/bin to your PATH and re-login."
+echo "If it isn't listed, make sure ~/.local/bin is on your PATH and re-login."
