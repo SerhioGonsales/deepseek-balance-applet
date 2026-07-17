@@ -9,7 +9,7 @@ set -euo pipefail
 REPO="SerhioGonsales/deepseek-balance-applet"
 VERSION="${1:-latest}"
 BIN_DIR="${HOME}/.local/bin"
-ICON_DIR="${HOME}/.local/share/icons/hicolor/scalable/apps"
+ICON_BASE="${HOME}/.local/share/icons/hicolor"
 DESKTOP_DIR="${HOME}/.local/share/applications"
 APP_ID="com.github.serhio.DeepSeekBalance"
 
@@ -25,18 +25,42 @@ mkdir -p "$BIN_DIR"
 curl -sSLf "$URL" -o "$BIN_DIR/deepseek-balance-applet"
 chmod +x "$BIN_DIR/deepseek-balance-applet"
 
-echo "Installing desktop entry and icon..."
+echo "Installing desktop entry and icons..."
 
-# Download icon and desktop file from the repo
-curl -sSLf "https://raw.githubusercontent.com/${REPO}/main/resources/icon.svg" \
-    -o /tmp/cosmic-applet-icon.svg
+# Desktop file
 curl -sSLf "https://raw.githubusercontent.com/${REPO}/main/resources/app.desktop" \
-    -o /tmp/cosmic-applet.desktop
+    -o /tmp/${APP_ID}.desktop
+mkdir -p "$DESKTOP_DIR"
+cp /tmp/${APP_ID}.desktop "$DESKTOP_DIR/${APP_ID}.desktop"
 
-mkdir -p "$ICON_DIR" "$DESKTOP_DIR"
-install -Dm0644 /tmp/cosmic-applet-icon.svg "$ICON_DIR/${APP_ID}.svg"
-install -Dm0644 /tmp/cosmic-applet.desktop "$DESKTOP_DIR/${APP_ID}.desktop"
+# SVG icon (scalable)
+curl -sSLf "https://raw.githubusercontent.com/${REPO}/main/resources/icon.svg" \
+    -o /tmp/${APP_ID}.svg
+mkdir -p "${ICON_BASE}/scalable/apps"
+cp /tmp/${APP_ID}.svg "${ICON_BASE}/scalable/apps/${APP_ID}.svg"
+
+# PNG icon (for applet list)
+ICON_PNG_DIR="${ICON_BASE}/128x128/apps"
+mkdir -p "$ICON_PNG_DIR"
+if curl -sSLf "https://raw.githubusercontent.com/${REPO}/main/resources/deepseek-48.png" \
+    -o /tmp/${APP_ID}.png 2>/dev/null; then
+    cp /tmp/${APP_ID}.png "${ICON_PNG_DIR}/${APP_ID}.png"
+else
+    echo "Note: no PNG icon found (non-critical)"
+fi
+
+# Update icon cache
+if command -v update-icon-caches &>/dev/null; then
+    update-icon-caches "$ICON_BASE" 2>/dev/null || true
+elif command -v gtk-update-icon-cache &>/dev/null; then
+    gtk-update-icon-cache "$ICON_BASE" 2>/dev/null || true
+fi
+
+# Update desktop database
+if command -v update-desktop-database &>/dev/null; then
+    update-desktop-database "$DESKTOP_DIR" 2>/dev/null || true
+fi
 
 echo
-echo "Done! Open Settings > Desktop > Panel > Applets and add 'DeepSeek Balance'."
-echo "If it isn't listed, make sure ~/.local/bin is on your PATH and re-login."
+echo "Done! Add via Settings > Desktop > Panel > Applets → DeepSeek Balance."
+echo "If it isn't listed, re-login or run: systemctl restart --user cosmic-panel"
