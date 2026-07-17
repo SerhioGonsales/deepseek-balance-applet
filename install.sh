@@ -41,16 +41,6 @@ curl -sSLf "https://raw.githubusercontent.com/${REPO}/main/resources/icon.svg" \
 mkdir -p "${ICON_BASE}/scalable/apps"
 cp /tmp/${APP_ID}.svg "${ICON_BASE}/scalable/apps/${APP_ID}.svg"
 
-# PNG icon (for applet list)
-ICON_PNG_DIR="${ICON_BASE}/128x128/apps"
-mkdir -p "$ICON_PNG_DIR"
-if curl -sSLf "https://raw.githubusercontent.com/${REPO}/main/resources/deepseek-48.png" \
-    -o /tmp/${APP_ID}.png 2>/dev/null; then
-    cp /tmp/${APP_ID}.png "${ICON_PNG_DIR}/${APP_ID}.png"
-else
-    echo "Note: no PNG icon found (non-critical)"
-fi
-
 # Update icon cache
 if command -v update-icon-caches &>/dev/null; then
     update-icon-caches "$ICON_BASE" 2>/dev/null || true

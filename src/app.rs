@@ -307,9 +307,10 @@ impl cosmic::Application for AppModel {
             .error
             .as_ref()
             .is_some_and(|e| e.starts_with("network error:"));
-        let is_err = offline || auth_err;
-        let balance_str: String = if self.config.api_key.is_empty() {
-            "?".into()
+        let no_key = self.config.api_key.is_empty();
+        let is_err = offline || auth_err || no_key;
+        let balance_str: String = if no_key {
+            fl!("badge-auth-error")
         } else if offline {
             fl!("badge-no-network")
         } else if auth_err {

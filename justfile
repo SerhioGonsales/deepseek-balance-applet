@@ -16,7 +16,6 @@ icon-dst := base-dir / 'share' / 'icons' / 'hicolor' / 'scalable' / 'apps' / app
 home-bin-dst := env('HOME') / '.local' / 'bin' / name
 home-desktop-dst := env('HOME') / '.local' / 'share' / 'applications' / appid + '.desktop'
 home-icon-dst := env('HOME') / '.local' / 'share' / 'icons' / 'hicolor' / 'scalable' / 'apps' / appid + '.svg'
-home-icon-png-dst := env('HOME') / '.local' / 'share' / 'icons' / 'hicolor' / '128x128' / 'apps' / appid + '.png'
 
 # Default recipe which runs `just build-release`
 default: build-release
@@ -65,7 +64,6 @@ install-user: build-release
     install -Dm0755 {{ cargo-target-dir / 'release' / name }} {{home-bin-dst}}
     install -Dm0644 resources/app.desktop {{home-desktop-dst}}
     install -Dm0644 resources/icon.svg {{home-icon-dst}}
-    install -Dm0644 resources/deepseek-48.png {{home-icon-png-dst}}
     @echo "Installed to ~/.local. Add via Settings > Desktop > Panel."
     @echo "Ensure ~/.local/bin is on your PATH."
 
@@ -75,7 +73,7 @@ uninstall:
 
 # Uninstalls user-local install
 uninstall-user:
-    rm -f {{home-bin-dst}} {{home-desktop-dst}} {{home-icon-dst}} {{home-icon-png-dst}}
+    rm -f {{home-bin-dst}} {{home-desktop-dst}} {{home-icon-dst}}
 
 # Vendor dependencies locally
 vendor:
