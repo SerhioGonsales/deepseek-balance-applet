@@ -424,19 +424,26 @@ impl cosmic::Application for AppModel {
 
         // ── No API key ────────────────────────────────────────────────────────
         if self.config.api_key.is_empty() {
-            body = body.add(info_block(
-                fl!("no-api-key-title"),
-                fl!("no-api-key"),
-                Some(
-                    widget::row(vec![
-                        badge_warning(fl!("badge-set-api-key")),
-                        widget::space::horizontal().width(8).into(),
-                        widget::button::standard(fl!("open-settings"))
+            body = body.add(card(
+                widget::list_column()
+                    .add(
+                        widget::row(vec![
+                            widget::text(fl!("no-api-key-title"))
+                                .size(16)
+                                .width(Length::Fill)
+                                .into(),
+                            widget::button::custom(badge_with_tooltip(
+                                badge_warning(fl!("badge-set-api-key")),
+                                fl!("set-api-key"),
+                            ))
                             .on_press(Message::OpenSettings)
+                            .class(cosmic::theme::Button::Icon)
+                            .padding(0)
                             .into(),
-                    ])
-                    .into(),
-                ),
+                        ])
+                        .align_y(Alignment::Center),
+                    )
+                    .add(widget::text::body(fl!("no-api-key")).size(13)),
             ));
             return self
                 .core
