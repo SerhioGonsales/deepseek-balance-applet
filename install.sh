@@ -64,5 +64,8 @@ if command -v update-desktop-database &>/dev/null; then
 fi
 
 echo
-echo "Done! Add via Settings > Desktop > Panel > Applets → DeepSeek Balance."
-echo "If it isn't listed, re-login or run: systemctl restart --user cosmic-panel"
+echo "✨  Thanks for installing DeepSeek Balance!"
+echo
+echo "Add it via  Settings → Desktop → Panel → Applets  →  DeepSeek Balance."
+echo "To avoid having to restart things manually, we highly recommend"
+echo "logging out and back in — everything will just work."
