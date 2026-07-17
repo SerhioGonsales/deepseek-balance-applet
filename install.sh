@@ -12,6 +12,7 @@ BIN_DIR="${HOME}/.local/bin"
 ICON_BASE="${HOME}/.local/share/icons/hicolor"
 DESKTOP_DIR="${HOME}/.local/share/applications"
 APP_ID="com.github.serhio.DeepSeekBalance"
+BIN_PATH="${BIN_DIR}/deepseek-balance-applet"
 
 echo "Downloading deepseek-balance-applet..."
 
@@ -22,16 +23,17 @@ else
 fi
 
 mkdir -p "$BIN_DIR"
-curl -sSLf "$URL" -o "$BIN_DIR/deepseek-balance-applet"
-chmod +x "$BIN_DIR/deepseek-balance-applet"
+curl -sSLf "$URL" -o "$BIN_PATH"
+chmod +x "$BIN_PATH"
 
 echo "Installing desktop entry and icons..."
 
-# Desktop file
+# Desktop file — patch Exec with absolute path
 curl -sSLf "https://raw.githubusercontent.com/${REPO}/main/resources/app.desktop" \
     -o /tmp/${APP_ID}.desktop
 mkdir -p "$DESKTOP_DIR"
-cp /tmp/${APP_ID}.desktop "$DESKTOP_DIR/${APP_ID}.desktop"
+sed "s|^Exec=.*|Exec=${BIN_PATH} %F|" /tmp/${APP_ID}.desktop \
+    > "$DESKTOP_DIR/${APP_ID}.desktop"
 
 # SVG icon (scalable)
 curl -sSLf "https://raw.githubusercontent.com/${REPO}/main/resources/icon.svg" \
