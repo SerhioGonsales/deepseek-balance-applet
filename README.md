@@ -1,5 +1,3 @@
-88011Qq
-
 # DeepSeek Balance
 
 A small [COSMIC](https://github.com/pop-os/cosmic-epoch) panel applet that shows your
